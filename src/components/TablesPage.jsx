@@ -1,0 +1,530 @@
+import React, { useState, useEffect, useRef } from 'react';
+import NavigationBar from './NavigationBar';
+import TableSection from './TableSection';
+import { 
+  getAllTables,
+  subscribeToTables,
+  updateTable,
+  deleteTable as deleteTableFirebase,
+  getAllHistory,
+  subscribeToHistory,
+  addHistory as addHistoryFirebase,
+  clearAllHistory
+} from '../services/firebaseService';
+
+const TablesPage = () => {
+  // Initialize with default tables 1-10
+  const tablesRef = useRef({});
+  
+  const [tables, setTables] = useState(() => {
+    // Create default tables 1-10
+    const defaultTables = {};
+    for (let i = 1; i <= 10; i++) {
+      defaultTables[i] = {
+        id: i,
+        orders: [],
+        total: 0
+      };
+    }
+    tablesRef.current = defaultTables;
+    return defaultTables;
+  });
+
+  const [currentTable, setCurrentTable] = useState(1);
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let tablesUnsubscribe = null;
+    let historyUnsubscribe = null;
+
+    const initializeTables = async () => {
+      // Check if tables exist in Firebase, if not, create default tables 1-10
+      const existingTables = await getAllTables();
+      
+      if (Object.keys(existingTables).length === 0) {
+        // Create default tables 1-10 if none exist
+        for (let i = 1; i <= 10; i++) {
+          const defaultTable = {
+            id: i,
+            orders: [],
+            total: 0
+          };
+          await updateTable(i, defaultTable);
+        }
+      }
+    };
+
+    const loadData = async () => {
+      setLoading(true);
+      
+      // Initialize default tables if needed
+      await initializeTables();
+      
+      // Subscribe to real-time tables updates
+      tablesUnsubscribe = subscribeToTables((updatedTables) => {
+        setTables(updatedTables);
+        tablesRef.current = updatedTables; // Keep ref in sync
+      });
+      
+      // Subscribe to real-time history updates
+      historyUnsubscribe = subscribeToHistory((updatedHistory) => {
+        setHistory(updatedHistory);
+      });
+      
+      setLoading(false);
+    };
+    
+    loadData();
+    
+    // Cleanup subscriptions
+    return () => {
+      if (tablesUnsubscribe) tablesUnsubscribe();
+      if (historyUnsubscribe) historyUnsubscribe();
+    };
+  }, []);
+
+  const [menuItems, setMenuItems] = useState(() => {
+    const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+    if (savedMenuItems) {
+      return JSON.parse(savedMenuItems).filter(item => item.available);
+    }
+    // Default menu items if none exist
+    return [
+      { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true },
+      { id: 'butterKhameeriRoti', name: 'Butter Khameeri Roti', price: 15, available: true },
+      { id: 'nalliNihariHalf', name: 'Nalli Nihari Half', price: 160, available: true },
+      { id: 'nalliNihariFull', name: 'Nalli Nihari Full', price: 300, available: true },
+      { id: 'amulButterTadka', name: 'Amul Butter Tadka', price: 40, available: true },
+      { id: 'waterBottle', name: 'Water Bottle', price: 10, available: true },
+      { id: 'nalli', name: 'Nalli (Bone Marrow)', price: 50, available: true },
+      { id: 'extraSoup', name: 'Extra Soup', price: 25, available: true },
+    ].filter(item => item.available);
+  });
+
+  // Listen for changes to menu items in localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+      if (savedMenuItems) {
+        setMenuItems(JSON.parse(savedMenuItems).filter(item => item.available));
+      }
+    };
+
+    // Listen for storage events to update menu items when changed in another tab/window
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also set up a listener for custom events (in case of same-tab updates)
+    const handleCustomUpdate = () => {
+      const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+      if (savedMenuItems) {
+        setMenuItems(JSON.parse(savedMenuItems).filter(item => item.available));
+      }
+    };
+    
+    window.addEventListener('menuItemsUpdated', handleCustomUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('menuItemsUpdated', handleCustomUpdate);
+    };
+  }, []);
+
+  // Function to add a new order to a table
+  const addOrderToTable = async (tableId) => {
+    const table = tablesRef.current[tableId];
+    if (!table) return;
+    
+    // Generate new order ID based on current order count
+    const newOrderId = table.orders.length > 0 
+      ? Math.max(...table.orders.map(order => order.id)) + 1 
+      : 1;
+    const newOrder = {
+      id: newOrderId,
+      items: [],
+      total: 0
+    };
+    
+    const updatedTable = {
+      ...table,
+      orders: [...table.orders, newOrder],
+      id: tableId
+    };
+    
+    await updateTable(tableId, updatedTable);
+  };
+
+  // Function to add item to an order
+  const addItemToOrder = async (tableId, orderId, menuItem) => {
+    const table = tablesRef.current[tableId];
+    if (!table) return;
+    
+    const orderIndex = table.orders.findIndex(order => order.id === orderId);
+    if (orderIndex === -1) return;
+    
+    const order = table.orders[orderIndex];
+    const existingItemIndex = order.items.findIndex(item => item.id === menuItem.id);
+    
+    let updatedItems;
+    if (existingItemIndex > -1) {
+      // Item already exists, increase quantity
+      updatedItems = [...order.items];
+      updatedItems[existingItemIndex] = {
+        ...updatedItems[existingItemIndex],
+        quantity: updatedItems[existingItemIndex].quantity + 1
+      };
+    } else {
+      // New item, add with quantity 1
+      updatedItems = [
+        ...order.items,
+        {
+          ...menuItem,
+          quantity: 1
+        }
+      ];
+    }
+    
+    const updatedOrders = [...table.orders];
+    updatedOrders[orderIndex] = {
+      ...order,
+      items: updatedItems,
+      total: updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    };
+    
+    const updatedTable = {
+      ...table,
+      orders: updatedOrders,
+      total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+    };
+    
+    await updateTable(tableId, updatedTable);
+  };
+
+  // Function to update item quantity
+  const updateItemQuantity = async (tableId, orderId, itemId, newQuantity) => {
+    if (newQuantity < 0) return;
+    
+    const table = tablesRef.current[tableId];
+    if (!table) return;
+    
+    const orderIndex = table.orders.findIndex(order => order.id === orderId);
+    if (orderIndex === -1) return;
+    
+    const order = table.orders[orderIndex];
+    const itemIndex = order.items.findIndex(item => item.id === itemId);
+    
+    if (itemIndex === -1) return;
+    
+    let updatedItems;
+    if (newQuantity === 0) {
+      // Remove item if quantity is 0
+      updatedItems = order.items.filter(item => item.id !== itemId);
+    } else {
+      // Update quantity
+      updatedItems = [...order.items];
+      updatedItems[itemIndex] = {
+        ...updatedItems[itemIndex],
+        quantity: newQuantity
+      };
+    }
+    
+    const updatedOrders = [...table.orders];
+    updatedOrders[orderIndex] = {
+      ...order,
+      items: updatedItems,
+      total: updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    };
+    
+    const updatedTable = {
+      ...table,
+      orders: updatedOrders,
+      total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+    };
+    
+    await updateTable(tableId, updatedTable);
+  };
+
+  // Function to clear a specific order
+  const clearOrder = async (tableId, orderId) => {
+    const table = tablesRef.current[tableId];
+    if (!table) return;
+    
+    const orderToClear = table.orders.find(order => order.id === orderId);
+    
+    // Save to history if the order has items
+    if (orderToClear && orderToClear.total > 0) {
+      const historyEntry = {
+        tableId,
+        orders: [orderToClear], // Save just this order
+        total: orderToClear.total,
+        timestamp: new Date().toLocaleString()
+      };
+      
+      await addHistoryFirebase(historyEntry);
+    }
+    
+    const updatedOrders = table.orders.map(order => {
+      if (order.id === orderId) {
+        return {
+          ...order,
+          items: [],
+          total: 0
+        };
+      }
+      return order;
+    });
+    
+    const updatedTable = {
+      ...table,
+      orders: updatedOrders,
+      total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+    };
+    
+    await updateTable(tableId, updatedTable);
+  };
+  
+  // Function to remove a specific order
+  const removeOrder = async (tableId, orderId) => {
+    const table = tablesRef.current[tableId];
+    if (!table) return;
+    
+    const updatedOrders = table.orders.filter(order => order.id !== orderId);
+    
+    const updatedTable = {
+      ...table,
+      orders: updatedOrders,
+      total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+    };
+    
+    await updateTable(tableId, updatedTable);
+  };
+
+  // Function to clear a table (save to history and remove from active)
+  const clearTable = async (tableId) => {
+    const table = tablesRef.current[tableId];
+    if (!table) return;
+    
+    if (table.orders.length === 0 || table.total === 0) {
+      // If table is empty, just reset it
+      const updatedTable = {
+        id: tableId,
+        orders: [],
+        total: 0
+      };
+      
+      await updateTable(tableId, updatedTable);
+      return;
+    }
+    
+    // Save to history
+    const historyEntry = {
+      tableId,
+      orders: table.orders,
+      total: table.total,
+      timestamp: new Date().toLocaleString()
+    };
+    
+    await addHistoryFirebase(historyEntry);
+    
+    // Reset table
+    const updatedTable = {
+      ...table,
+      orders: [],
+      total: 0
+    };
+    
+    await updateTable(tableId, updatedTable);
+  };
+
+  // Function to add a new table
+  const addNewTable = async () => {
+    // Get all existing table IDs and find the highest one
+    const existingTableIds = Object.keys(tablesRef.current).map(Number);
+    const newTableId = existingTableIds.length > 0 ? Math.max(...existingTableIds) + 1 : 11; // Start from 11 if no tables exist
+    const newTable = {
+      id: newTableId,
+      orders: [],
+      total: 0
+    };
+    
+    await updateTable(newTableId, newTable);
+    setCurrentTable(newTableId);
+  };
+
+  // Function to delete a table
+  const deleteTable = async (tableId) => {
+    if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
+      // Clean up orders before deletion - save non-empty orders to history
+      const table = tablesRef.current[tableId];
+      if (table && table.orders.length > 0) {
+        // Filter out non-empty orders to save to history
+        const nonEmptyOrders = table.orders.filter(order => order.total > 0);
+        
+        // If there are non-empty orders, save them to history
+        if (nonEmptyOrders.length > 0) {
+          const historyEntry = {
+            tableId,
+            orders: nonEmptyOrders,
+            total: table.total,
+            timestamp: new Date().toLocaleString()
+          };
+          
+          await addHistoryFirebase(historyEntry);
+        }
+      }
+      
+      await deleteTableFirebase(tableId);
+      
+      // If the current table is being deleted, switch to the first available table
+      if (currentTable === tableId) {
+        const remainingTableIds = Object.keys(tablesRef.current).filter(id => id !== tableId).map(Number).sort((a, b) => a - b);
+        if (remainingTableIds.length > 0) {
+          setCurrentTable(remainingTableIds[0]);
+        } else {
+          // If no tables remain, create a new one
+          const newTableId = 1;
+          const newTable = {
+            id: newTableId,
+            orders: [],
+            total: 0
+          };
+          
+          await updateTable(newTableId, newTable);
+          setCurrentTable(newTableId);
+        }
+      }
+    }
+  };
+
+  const clearHistory = async () => {
+    if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
+      await clearAllHistory();
+    }
+  };
+
+  const restoreOrder = async (historyEntry) => {
+    if (window.confirm(`Restore order for Table ${historyEntry.tableId}?`)) {
+      const currentTableData = tablesRef.current[historyEntry.tableId] || {
+        id: historyEntry.tableId,
+        orders: [],
+        total: 0
+      };
+      
+      // Add the orders from history
+      // Instead of just concatenating, we need to create new orders with unique IDs
+      const newOrderOffset = currentTableData.orders.length;
+      const restoredOrders = historyEntry.orders.map((order, index) => ({
+        ...order,
+        id: currentTableData.orders.length + index + 1 // Generate new unique IDs
+      }));
+      
+      const allOrders = [...currentTableData.orders, ...restoredOrders];
+      const newTotal = allOrders.reduce((sum, order) => sum + order.total, 0);
+      
+      const updatedTable = {
+        ...currentTableData,
+        orders: allOrders,
+        total: newTotal
+      };
+      
+      await updateTable(historyEntry.tableId, updatedTable);
+      
+      alert(`Order restored to Table ${historyEntry.tableId}`);
+    }
+  };
+
+  const toggleHistory = () => {
+    setShowHistory(!showHistory);
+  };
+
+  return (
+    <div className="tables-page">
+      <NavigationBar currentPage="tables" />
+      <div className="page-content">
+        <TableSection 
+          tables={tables}
+          currentTable={currentTable}
+          setCurrentTable={setCurrentTable}
+          menuItems={menuItems}
+          addOrderToTable={addOrderToTable}
+          addItemToOrder={addItemToOrder}
+          updateItemQuantity={updateItemQuantity}
+          clearTable={clearTable}
+          clearOrder={clearOrder}
+          removeOrder={removeOrder}
+          addNewTable={addNewTable}
+          deleteTable={deleteTable}
+        />
+        
+        {/* Collapsible History Section */}
+        <div className="history-section">
+          <div className="history-header">
+            <div className="history-toggle">
+              <button className="history-toggle-btn" onClick={toggleHistory}>
+                Order History {showHistory ? '▲' : '▼'} ({history.length})
+              </button>
+              {showHistory && history.length > 0 && (
+                <button className="clear-history-btn" onClick={clearHistory}>
+                  Clear All History
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {showHistory && (
+            <div className="history-content">
+              {history.length === 0 ? (
+                <div className="no-history">
+                  <p>No order history yet.</p>
+                </div>
+              ) : (
+                <div className="history-list">
+                  {[...history].reverse().map((entry) => (
+                    <div key={entry.id} className="history-item">
+                      <div className="history-header-row">
+                        <div className="history-info">
+                          <span className="table-number">Table {entry.tableId}</span>
+                          <span className="timestamp">{entry.timestamp}</span>
+                          <span className="total-amount">₹{entry.total}</span>
+                        </div>
+                        <div className="history-actions">
+                          <button 
+                            className="restore-btn" 
+                            onClick={() => restoreOrder(entry)}
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="history-orders">
+                        {entry.orders.map((order, orderIndex) => (
+                          <div key={orderIndex} className="history-order">
+                            <h4>Order {orderIndex + 1}</h4>
+                            <div className="history-items">
+                              {order.items.map((item, itemIndex) => (
+                                <div key={itemIndex} className="history-item-row">
+                                  <span className="item-name">{item.name}</span>
+                                  <span className="item-qty">x{item.quantity}</span>
+                                  <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="order-total">Order Total: ₹{order.total.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TablesPage;
