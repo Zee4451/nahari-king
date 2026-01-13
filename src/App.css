@@ -1107,19 +1107,31 @@ body {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0.5rem;
+  font-size: 0.9rem; /* Smaller font for better mobile fit */
 }
-
+  
 .menu-items-table th,
 .menu-items-table td {
-  padding: 0.75rem;
+  padding: 0.6rem;
   text-align: left;
   border: 1px solid #e0e0e0;
+}
+  
+/* Drag handle for better UX */
+.menu-items-table tr {
+  cursor: move; /* fallback */
+  cursor: grab;
+}
+  
+.menu-items-table tr:active {
+  cursor: grabbing;
 }
 
 .menu-items-table th {
   background-color: #f8f9fa;
   font-weight: 600;
   color: #333333;
+  white-space: nowrap; /* Prevent header wrapping */
 }
 
 .menu-items-table tr:nth-child(even) {
@@ -1150,11 +1162,11 @@ body {
 .menu-items-table button {
   margin-right: 0.25rem;
   margin-bottom: 0.25rem;
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.6rem;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .menu-items-table .export-btn {
@@ -1327,6 +1339,153 @@ body {
   }
 }
 
+@media (max-width: 768px) {
+  /* Existing styles for medium screens */
+  .table-buttons {
+    justify-content: center;
+  }
+  
+  .table-btn, .add-table-btn {
+    padding: 0.35rem 0.5rem;
+    min-width: 45px;
+    font-size: 0.8rem;
+  }
+  
+  .menu-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  
+  .page-content {
+    padding: 0.5rem;
+  }
+  
+  .table-section {
+    padding: 0.5rem 0;
+  }
+  
+  /* Mobile specific table switcher */
+  .table-switcher-controls {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow: visible;
+  }
+  
+  .table-buttons-container {
+    max-width: 100%;
+    margin: 0.25rem 0;
+    flex-grow: 1;
+  }
+  
+  .scroll-btn {
+    align-self: center;
+    width: 50px;
+    margin: 0.25rem 0;
+  }
+  
+  .table-btn, .add-table-btn {
+    padding: 0.4rem 0.8rem;
+    min-width: 60px;
+  }
+  
+  .delete-table-btn {
+    width: 16px;
+    height: 16px;
+    font-size: 0.6rem;
+  }
+  
+  .table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .clear-table-btn, .add-order-btn, .delete-table-btn-action {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+    width: 100%;
+  }
+  
+  /* Responsive menu items table for Settings page */
+  .menu-items-table {
+    font-size: 0.8rem;
+  }
+  
+  .menu-items-table th,
+  .menu-items-table td {
+    padding: 0.4rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Stack table columns on medium screens */
+  .menu-items-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+  
+  .menu-items-table thead,
+  .menu-items-table tbody,
+  .menu-items-table th,
+  .menu-items-table td,
+  .menu-items-table tr {
+    display: block;
+  }
+  
+  .menu-items-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .menu-items-table tr {
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    display: block;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: relative; /* For drag handle positioning */
+  }
+  
+  .menu-items-table td {
+    border: none;
+    position: relative;
+    padding: 8px 8px 8px 40% !important;
+    text-align: left;
+    min-height: 24px; /* Ensure touch targets are large enough */
+  }
+  
+  .menu-items-table td:before {
+    content: attr(data-label) " ";
+    position: absolute;
+    left: 8px;
+    width: 35%;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-weight: bold;
+    text-align: left;
+    color: #333;
+  }
+  
+  .menu-items-table .availability {
+    display: inline-block;
+    margin-top: 5px;
+  }
+  
+  .menu-items-table button {
+    margin: 2px;
+    padding: 0.4rem 0.6rem; /* Increase touch target size */
+    font-size: 0.75rem;
+    min-height: 36px; /* Minimum touch target size */
+  }
+  
+  /* Improve drag handle for touch devices */
+  .menu-items-table tr[ref] {
+    touch-action: none; /* Allow proper drag handling on touch devices */
+  }
+}
+
 @media (max-width: 480px) {
   .table-buttons {
     justify-content: center;
@@ -1390,5 +1549,34 @@ body {
     margin-right: 0;
     margin-bottom: 0.5rem;
     width: 100%;
+  }
+  
+  /* Even smaller screen adjustments */
+  .menu-items-table {
+    font-size: 0.75rem;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+  
+  .menu-items-table th,
+  .menu-items-table td {
+    padding: 0.3rem;
+    font-size: 0.7rem;
+  }
+  
+  .menu-items-table td {
+    padding: 6px 6px 6px 40% !important;
+    min-height: 24px; /* Ensure touch targets are large enough */
+  }
+  
+  .menu-items-table button {
+    margin: 1px;
+    padding: 0.4rem 0.5rem; /* Maintain touch target size */
+    font-size: 0.7rem;
+    min-height: 36px; /* Minimum touch target size */
+  }
+  
+  /* Improve drag handle for touch devices */
+  .menu-items-table tr[ref] {
+    touch-action: none; /* Allow proper drag handling on touch devices */
   }
 }

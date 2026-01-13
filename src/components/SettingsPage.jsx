@@ -261,16 +261,16 @@ const SettingsPage = () => {
 
     return (
       <tr ref={(node) => drag(drop(node))} style={{ opacity: isDragging ? 0.5 : 1 }}>
-        <td>{item.sequence}</td>
-        <td>{item.id}</td>
-        <td>{item.name}</td>
-        <td>₹{item.price}</td>
-        <td>
+        <td data-label="Seq">{item.sequence}</td>
+        <td data-label="ID">{item.id}</td>
+        <td data-label="Name">{item.name}</td>
+        <td data-label="Price">₹{item.price}</td>
+        <td data-label="Available">
           <span className={`availability ${item.available ? 'available' : 'unavailable'}`}>
             {item.available ? '✓ Available' : '✗ Unavailable'}
           </span>
         </td>
-        <td>
+        <td data-label="Actions">
           <button 
             className="export-btn" 
             onClick={() => startEdit(item)}
