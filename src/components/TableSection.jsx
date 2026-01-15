@@ -273,7 +273,23 @@ const TableSection = ({
               ))}
             </div>
           </div>
-          <button className="add-table-btn" onClick={addNewTable}>+</button>
+          <button 
+            className="add-table-btn" 
+            onClick={() => {
+              // Limit the number of tables to prevent performance issues
+              if (allTableIds.length >= 50) {
+                alert('Maximum number of tables reached (50). Please delete unused tables before adding more.');
+                return;
+              }
+              
+              // Confirm before adding a new table
+              if (window.confirm('Are you sure you want to add a new table?')) {
+                addNewTable();
+              }
+            }}
+          >
+            +
+          </button>
         </div>
         
 
