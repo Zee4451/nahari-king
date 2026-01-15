@@ -282,23 +282,7 @@ body {
   font-size: 0.9rem;
 }
 
-/* Table Status Legend */
-.table-status-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  font-size: 0.8rem;
-}
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
 
 .legend-color {
   display: inline-block;

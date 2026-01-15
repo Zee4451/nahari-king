@@ -307,25 +307,7 @@ const TableSection = ({
           </button>
         </div>
         
-        {/* Table Status Legend */}
-        <div className="table-status-legend">
-          <div className="legend-item">
-            <span className="legend-color current"></span>
-            <span>Current Active</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color has-orders"></span>
-            <span>Has Orders</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color has-empty-orders"></span>
-            <span>Has Empty Orders</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color empty"></span>
-            <span>Empty</span>
-          </div>
-        </div>
+
       </div>
 
       
