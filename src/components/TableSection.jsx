@@ -241,17 +241,7 @@ const TableSection = ({
     }
   };
 
-  // Function to scroll the table switcher
-  const scrollTables = (direction) => {
-    const container = document.querySelector('.table-buttons-container');
-    if (container) {
-      const scrollAmount = 200; // pixels to scroll
-      container.scrollBy({
-        left: direction === 'right' ? scrollAmount : -scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
+
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -259,12 +249,6 @@ const TableSection = ({
       {/* Fast Table Switching Bar */}
       <div className="table-switcher">
         <div className="table-switcher-controls">
-          <button 
-            className="scroll-btn" 
-            onClick={() => scrollTables('left')}
-          >
-            &lt;
-          </button>
           <div className="table-buttons-container">
             <div className="table-buttons">
               {allTableIds.map(tableId => (
@@ -290,12 +274,6 @@ const TableSection = ({
             </div>
           </div>
           <button className="add-table-btn" onClick={addNewTable}>+</button>
-          <button 
-            className="scroll-btn" 
-            onClick={() => scrollTables('right')}
-          >
-            &gt;
-          </button>
         </div>
         
 
