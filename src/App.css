@@ -1564,3 +1564,66 @@ body {
     touch-action: none; /* Allow proper drag handling on touch devices */
   }
 }
+
+/* Table Management Section in Settings */
+.table-management-list {
+  margin-top: 1rem;
+}
+
+.tables-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.9rem; /* Smaller font for better mobile fit */
+}
+
+.tables-table th,
+.tables-table td {
+  padding: 0.6rem;
+  text-align: left;
+  border: 1px solid #e0e0e0;
+}
+
+.tables-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #333333;
+  white-space: nowrap; /* Prevent header wrapping */
+}
+
+.tables-table tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.tables-table tr:hover {
+  background-color: #e9ecef;
+}
+
+.tables-table button {
+  margin-right: 0.25rem;
+  margin-bottom: 0.25rem;
+  padding: 0.35rem 0.6rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.tables-table .export-btn {
+  background-color: #17a2b8; /* Teal */
+  color: white;
+}
+
+.tables-table .danger-btn {
+  background-color: #dc3545; /* Red */
+  color: white;
+}
+
+.tables-table button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.tables-table button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

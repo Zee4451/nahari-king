@@ -2,10 +2,62 @@ import React, { useState, useEffect } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import NavigationBar from './NavigationBar';
+import { 
+  getAllTables,
+  subscribeToTables,
+  updateTable,
+  deleteTable as deleteTableFirebase
+} from '../services/firebaseService';
 
 const SettingsPage = () => {
   // Define item types for drag and drop
   const ITEM_TYPE = 'MENU_ITEM';
+  
+  // State for managing tables
+  const [tables, setTables] = useState({});
+  
+  // Function to add a new table
+  const addNewTable = async () => {
+    // Get all existing table IDs and find the highest one
+    const existingTableIds = Object.keys(tables).map(Number);
+    const newTableId = existingTableIds.length > 0 ? Math.max(...existingTableIds) + 1 : 11; // Start from 11 if no tables exist
+    const newTable = {
+      id: newTableId,
+      orders: [],
+      total: 0
+    };
+    
+    await updateTable(newTableId, newTable);
+    alert(`Table ${newTableId} added successfully!`);
+  };
+
+  // Function to delete a table
+  const deleteTable = async (tableId) => {
+    if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
+      await deleteTableFirebase(tableId);
+      alert(`Table ${tableId} deleted successfully!`);
+    }
+  };
+  
+  // Load tables on component mount
+  useEffect(() => {
+    const loadTables = async () => {
+      const loadedTables = await getAllTables();
+      setTables(loadedTables);
+    };
+    
+    loadTables();
+    
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToTables((updatedTables) => {
+      setTables(updatedTables);
+    });
+    
+    // Cleanup subscription
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
   
   // Function to move an item from one position to another
   const moveItem = (fromIndex, toIndex) => {
@@ -437,6 +489,77 @@ const SettingsPage = () => {
             <button className="danger-btn" onClick={clearAllData}>
               Clear All Data
             </button>
+          </div>
+        </div>
+        
+        <div className="settings-section">
+          <h2>Table Management</h2>
+          
+          <div className="setting-item">
+            <h3>Add New Table</h3>
+            <p>Create a new table in the system. Tables will be numbered sequentially.</p>
+            <button 
+              className="export-btn" 
+              onClick={async () => {
+                // Limit the number of tables to prevent performance issues
+                const allTableIds = Object.keys(tables).map(Number).sort((a, b) => a - b);
+                if (allTableIds.length >= 50) {
+                  alert('Maximum number of tables reached (50). Please delete unused tables before adding more.');
+                  return;
+                }
+                
+                // Confirm before adding a new table
+                if (window.confirm('Are you sure you want to add a new table?')) {
+                  await addNewTable();
+                }
+              }}
+            >
+              Add New Table
+            </button>
+          </div>
+          
+          <div className="setting-item">
+            <h3>Current Tables</h3>
+            <p>Manage existing tables in the system:</p>
+            <div className="table-management-list">
+              {Object.keys(tables).length === 0 ? (
+                <p>No tables found. Add a table above.</p>
+              ) : (
+                <table className="tables-table">
+                  <thead>
+                    <tr>
+                      <th>Table Number</th>
+                      <th>Orders Count</th>
+                      <th>Total Amount</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(tables)
+                      .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                      .map(([tableId, tableData]) => (
+                        <tr key={tableId}>
+                          <td>{tableId}</td>
+                          <td>{tableData.orders.length}</td>
+                          <td>₹{tableData.total.toFixed(2)}</td>
+                          <td>
+                            <button 
+                              className="danger-btn" 
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
+                                  deleteTable(parseInt(tableId));
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
         
