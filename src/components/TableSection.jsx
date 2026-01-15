@@ -284,16 +284,7 @@ const TableSection = ({
                       )}
                     </>
                   )}
-                  <button 
-                    className="delete-table-btn" 
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent triggering table switch
-                      deleteTable(tableId);
-                    }}
-                    title={`Delete Table ${tableId}`}
-                  >
-                    ×
-                  </button>
+                  
                 </button>
               ))}
             </div>
@@ -410,7 +401,7 @@ const TableSection = ({
       </div>
 
 
-      {/* Clear Table Button */}
+      {/* Clear and Delete Table Buttons */}
       <div className="table-actions">
         <button 
           className="clear-table-btn" 
@@ -421,7 +412,11 @@ const TableSection = ({
         </button>
         <button 
           className="delete-table-btn-action" 
-          onClick={() => deleteTable(currentTable)}
+          onClick={() => {
+            if (window.confirm(`Are you sure you want to delete Table ${currentTable}? This will remove all orders from this table.`)) {
+              deleteTable(currentTable);
+            }
+          }}
         >
           Delete Table
         </button>
