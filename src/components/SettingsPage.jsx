@@ -666,7 +666,10 @@ const SettingsPage = () => {
             <h2>Settings</h2>
             <button 
               className="hamburger-btn"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => {
+                console.log('Hamburger clicked, current state:', mobileMenuOpen);
+                setMobileMenuOpen(!mobileMenuOpen);
+              }}
               aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? '✕' : '☰'}

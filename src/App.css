@@ -1654,6 +1654,21 @@ body {
   align-items: center;
 }
 
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: #333;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .sidebar-header h2 {
   margin: 0;
   color: #333;
