@@ -1655,18 +1655,18 @@ body {
 }
 
 .hamburger-btn {
-  display: none;
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   cursor: pointer;
   padding: 0.5rem;
   color: #333;
   min-height: 44px;
   min-width: 44px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
+  z-index: 1000;
 }
 
 .sidebar-header h2 {
@@ -1675,19 +1675,10 @@ body {
   font-size: 1.4rem;
 }
 
-.hamburger-btn {
-  display: none;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  color: #333;
-}
-
 .nav-menu {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .nav-link {
@@ -1766,13 +1757,17 @@ body {
   }
   
   .hamburger-btn {
-    display: block;
+    display: block !important;
+    position: relative;
+    z-index: 1001;
   }
   
   .nav-menu {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
   }
   
   .nav-menu.open {

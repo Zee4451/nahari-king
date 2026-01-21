@@ -141,10 +141,16 @@ const SettingsPage = () => {
     }
   }, []);
   
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log('mobileMenuOpen state changed to:', mobileMenuOpen);
+  }, [mobileMenuOpen]);
+  
   // Close mobile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (mobileMenuOpen && window.innerWidth <= 768) {
+        console.log('Click outside detected, closing menu');
         setMobileMenuOpen(false);
       }
     };
@@ -666,11 +672,19 @@ const SettingsPage = () => {
             <h2>Settings</h2>
             <button 
               className="hamburger-btn"
-              onClick={() => {
-                console.log('Hamburger clicked, current state:', mobileMenuOpen);
-                setMobileMenuOpen(!mobileMenuOpen);
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Hamburger clicked! Current state:', mobileMenuOpen);
+                const newState = !mobileMenuOpen;
+                console.log('Setting state to:', newState);
+                setMobileMenuOpen(newState);
+              }}
+              onTouchStart={(e) => {
+                console.log('Touch start detected');
               }}
               aria-label="Toggle navigation menu"
+              type="button"
             >
               {mobileMenuOpen ? '✕' : '☰'}
             </button>
