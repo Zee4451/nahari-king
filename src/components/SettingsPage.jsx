@@ -402,234 +402,275 @@ const SettingsPage = () => {
     ));
   };
 
+  const [activeTab, setActiveTab] = useState('menu');
+  
+  const tabs = [
+    { id: 'menu', label: 'Menu Items', icon: '📋' },
+    { id: 'tables', label: 'Tables', icon: '🪑' },
+    { id: 'data', label: 'Data', icon: '💾' },
+    { id: 'about', label: 'About', icon: 'ℹ️' }
+  ];
+  
+  const renderActiveTabContent = () => {
+    switch(activeTab) {
+      case 'menu':
+        return (
+          <div className="tab-content">
+            <div className="setting-item">
+              <h3>{editingId ? 'Edit Menu Item' : 'Add New Menu Item'}</h3>
+              <form onSubmit={editingId ? updateMenuItem : addMenuItem}>
+                <div className="form-group">
+                  <label htmlFor="itemId">Item ID:</label>
+                  <input
+                    type="text"
+                    id="itemId"
+                    value={newMenuItem.id}
+                    onChange={(e) => setNewMenuItem({...newMenuItem, id: e.target.value})}
+                    placeholder="Auto-generated if empty"
+                    disabled={editingId} // Disable ID field when editing
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="itemName">Item Name:</label>
+                  <input
+                    type="text"
+                    id="itemName"
+                    value={newMenuItem.name}
+                    onChange={(e) => setNewMenuItem({...newMenuItem, name: e.target.value})}
+                    placeholder="Enter item name"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="itemPrice">Price:</label>
+                  <input
+                    type="number"
+                    id="itemPrice"
+                    value={newMenuItem.price}
+                    onChange={(e) => setNewMenuItem({...newMenuItem, price: e.target.value})}
+                    placeholder="Enter price"
+                    min="0"
+                    step="0.01"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group checkbox-group">
+                  <label htmlFor="itemAvailable">Available:</label>
+                  <input
+                    type="checkbox"
+                    id="itemAvailable"
+                    checked={newMenuItem.available}
+                    onChange={(e) => setNewMenuItem({...newMenuItem, available: e.target.checked})}
+                  />
+                </div>
+                
+                <div className="form-actions">
+                  <button type="submit" className="export-btn">
+                    {editingId ? 'Update Item' : 'Add Item'}
+                  </button>
+                  {editingId && (
+                    <button type="button" className="danger-btn" onClick={cancelEdit}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+            
+            <div className="setting-item">
+              <h3>Existing Menu Items</h3>
+              <div className="menu-mode-controls">
+                <button 
+                  className={`mode-toggle-btn ${reorderMode ? 'reorder-active' : 'edit-active'}`}
+                  onClick={toggleReorderMode}
+                >
+                  {reorderMode ? 'Exit Reorder Mode' : 'Enter Reorder Mode'}
+                </button>
+                {reorderMode && (
+                  <span className="mode-description">
+                    Tap ↑↓ arrows or enter position numbers to reorder items
+                  </span>
+                )}
+              </div>
+              <div className="menu-items-list">
+                {menuItems.length === 0 ? (
+                  <p>No menu items found. Add some items above.</p>
+                ) : (
+                  <table className="menu-items-table">
+                    <thead>
+                      <tr>
+                        <th>Seq</th>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Price</th>
+                        <th>Available</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {menuItems
+                        .slice()
+                        .sort((a, b) => a.sequence - b.sequence) // Sort by sequence
+                        .map((item, index) => (
+                        <MenuItemRow key={item.id} item={item} index={index} />
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      case 'tables':
+        return (
+          <div className="tab-content">
+            <div className="setting-item">
+              <h3>Add New Table</h3>
+              <p>Create a new table in the system. Tables will be numbered sequentially.</p>
+              <button 
+                className="export-btn" 
+                onClick={async () => {
+                  // Limit the number of tables to prevent performance issues
+                  const allTableIds = Object.keys(tables).map(Number).sort((a, b) => a - b);
+                  if (allTableIds.length >= 50) {
+                    alert('Maximum number of tables reached (50). Please delete unused tables before adding more.');
+                    return;
+                  }
+                  
+                  // Confirm before adding a new table
+                  if (window.confirm('Are you sure you want to add a new table?')) {
+                    await addNewTable();
+                  }
+                }}
+              >
+                Add New Table
+              </button>
+            </div>
+            
+            <div className="setting-item">
+              <h3>Current Tables</h3>
+              <p>Manage existing tables in the system:</p>
+              <div className="table-management-list">
+                {Object.keys(tables).length === 0 ? (
+                  <p>No tables found. Add a table above.</p>
+                ) : (
+                  <table className="tables-table">
+                    <thead>
+                      <tr>
+                        <th>Table Number</th>
+                        <th>Orders Count</th>
+                        <th>Total Amount</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(tables)
+                        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                        .map(([tableId, tableData]) => (
+                          <tr key={tableId}>
+                            <td>{tableId}</td>
+                            <td>{tableData.orders.length}</td>
+                            <td>₹{tableData.total.toFixed(2)}</td>
+                            <td>
+                              <button 
+                                className="danger-btn" 
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
+                                    deleteTable(parseInt(tableId));
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      case 'data':
+        return (
+          <div className="tab-content">
+            <div className="setting-item">
+              <h3>Export Data</h3>
+              <p>Export all tables, order history, and menu items to a JSON file.</p>
+              <button className="export-btn" onClick={exportData}>
+                Export Data
+              </button>
+            </div>
+            
+            <div className="setting-item">
+              <h3>Import Data</h3>
+              <p>Import tables, order history, and menu items from a JSON file.</p>
+              <input 
+                type="file" 
+                accept=".json" 
+                onChange={importData} 
+                className="import-input"
+              />
+            </div>
+            
+            <div className="setting-item">
+              <h3>Clear All Data</h3>
+              <p>Remove all tables, orders, history, and menu items. This cannot be undone.</p>
+              <button className="danger-btn" onClick={clearAllData}>
+                Clear All Data
+              </button>
+            </div>
+          </div>
+        );
+      case 'about':
+        return (
+          <div className="tab-content">
+            <div className="about-content">
+              <p><strong>Nalli Nihari Table Management System</strong></p>
+              <p>A fast, lightweight, production-ready POS system for restaurants.</p>
+              <p>Version: 1.0.0</p>
+              <p>Local data storage using browser's LocalStorage</p>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+  
   return (
     <DndProvider backend={HTML5Backend}>
     <div className="settings-page">
       <NavigationBar currentPage="settings" />
-      <div className="page-content">
-        <h1>Settings</h1>
-        
-        {/* Menu Item Management Section */}
-        <div className="settings-section">
-          <h2>Menu Item Management</h2>
-          
-          <div className="setting-item">
-            <h3>{editingId ? 'Edit Menu Item' : 'Add New Menu Item'}</h3>
-            <form onSubmit={editingId ? updateMenuItem : addMenuItem}>
-              <div className="form-group">
-                <label htmlFor="itemId">Item ID:</label>
-                <input
-                  type="text"
-                  id="itemId"
-                  value={newMenuItem.id}
-                  onChange={(e) => setNewMenuItem({...newMenuItem, id: e.target.value})}
-                  placeholder="Auto-generated if empty"
-                  disabled={editingId} // Disable ID field when editing
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="itemName">Item Name:</label>
-                <input
-                  type="text"
-                  id="itemName"
-                  value={newMenuItem.name}
-                  onChange={(e) => setNewMenuItem({...newMenuItem, name: e.target.value})}
-                  placeholder="Enter item name"
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="itemPrice">Price:</label>
-                <input
-                  type="number"
-                  id="itemPrice"
-                  value={newMenuItem.price}
-                  onChange={(e) => setNewMenuItem({...newMenuItem, price: e.target.value})}
-                  placeholder="Enter price"
-                  min="0"
-                  step="0.01"
-                  required
-                />
-              </div>
-              
-              <div className="form-group checkbox-group">
-                <label htmlFor="itemAvailable">Available:</label>
-                <input
-                  type="checkbox"
-                  id="itemAvailable"
-                  checked={newMenuItem.available}
-                  onChange={(e) => setNewMenuItem({...newMenuItem, available: e.target.checked})}
-                />
-              </div>
-              
-              <div className="form-actions">
-                <button type="submit" className="export-btn">
-                  {editingId ? 'Update Item' : 'Add Item'}
-                </button>
-                {editingId && (
-                  <button type="button" className="danger-btn" onClick={cancelEdit}>
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </form>
+      <div className="settings-layout">
+        <div className="sidebar-nav">
+          <div className="sidebar-header">
+            <h2>Settings</h2>
           </div>
-          
-          <div className="setting-item">
-            <h3>Existing Menu Items</h3>
-            <div className="menu-mode-controls">
-              <button 
-                className={`mode-toggle-btn ${reorderMode ? 'reorder-active' : 'edit-active'}`}
-                onClick={toggleReorderMode}
+          <nav className="nav-menu">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
               >
-                {reorderMode ? 'Exit Reorder Mode' : 'Enter Reorder Mode'}
+                <span className="nav-icon">{tab.icon}</span>
+                <span className="nav-text">{tab.label}</span>
               </button>
-              {reorderMode && (
-                <span className="mode-description">
-                  Tap ↑↓ arrows or enter position numbers to reorder items
-                </span>
-              )}
-            </div>
-            <div className="menu-items-list">
-              {menuItems.length === 0 ? (
-                <p>No menu items found. Add some items above.</p>
-              ) : (
-                <table className="menu-items-table">
-                  <thead>
-                    <tr>
-                      <th>Seq</th>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Price</th>
-                      <th>Available</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {menuItems
-                      .slice()
-                      .sort((a, b) => a.sequence - b.sequence) // Sort by sequence
-                      .map((item, index) => (
-                      <MenuItemRow key={item.id} item={item} index={index} />
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
+            ))}
+          </nav>
         </div>
         
-        <div className="settings-section">
-          <h2>Data Management</h2>
-          
-          <div className="setting-item">
-            <h3>Export Data</h3>
-            <p>Export all tables, order history, and menu items to a JSON file.</p>
-            <button className="export-btn" onClick={exportData}>
-              Export Data
-            </button>
-          </div>
-          
-          <div className="setting-item">
-            <h3>Import Data</h3>
-            <p>Import tables, order history, and menu items from a JSON file.</p>
-            <input 
-              type="file" 
-              accept=".json" 
-              onChange={importData} 
-              className="import-input"
-            />
-          </div>
-          
-          <div className="setting-item">
-            <h3>Clear All Data</h3>
-            <p>Remove all tables, orders, history, and menu items. This cannot be undone.</p>
-            <button className="danger-btn" onClick={clearAllData}>
-              Clear All Data
-            </button>
-          </div>
-        </div>
-        
-        <div className="settings-section">
-          <h2>Table Management</h2>
-          
-          <div className="setting-item">
-            <h3>Add New Table</h3>
-            <p>Create a new table in the system. Tables will be numbered sequentially.</p>
-            <button 
-              className="export-btn" 
-              onClick={async () => {
-                // Limit the number of tables to prevent performance issues
-                const allTableIds = Object.keys(tables).map(Number).sort((a, b) => a - b);
-                if (allTableIds.length >= 50) {
-                  alert('Maximum number of tables reached (50). Please delete unused tables before adding more.');
-                  return;
-                }
-                
-                // Confirm before adding a new table
-                if (window.confirm('Are you sure you want to add a new table?')) {
-                  await addNewTable();
-                }
-              }}
-            >
-              Add New Table
-            </button>
-          </div>
-          
-          <div className="setting-item">
-            <h3>Current Tables</h3>
-            <p>Manage existing tables in the system:</p>
-            <div className="table-management-list">
-              {Object.keys(tables).length === 0 ? (
-                <p>No tables found. Add a table above.</p>
-              ) : (
-                <table className="tables-table">
-                  <thead>
-                    <tr>
-                      <th>Table Number</th>
-                      <th>Orders Count</th>
-                      <th>Total Amount</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(tables)
-                      .sort(([a], [b]) => parseInt(a) - parseInt(b))
-                      .map(([tableId, tableData]) => (
-                        <tr key={tableId}>
-                          <td>{tableId}</td>
-                          <td>{tableData.orders.length}</td>
-                          <td>₹{tableData.total.toFixed(2)}</td>
-                          <td>
-                            <button 
-                              className="danger-btn" 
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
-                                  deleteTable(parseInt(tableId));
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              )}
+        <div className="main-content">
+          <div className="page-content">
+            <div className="tab-header">
+              <h1>{tabs.find(tab => tab.id === activeTab)?.label} Settings</h1>
             </div>
-          </div>
-        </div>
-        
-        <div className="settings-section">
-          <h2>About</h2>
-          <div className="about-content">
-            <p><strong>Nalli Nihari Table Management System</strong></p>
-            <p>A fast, lightweight, production-ready POS system for restaurants.</p>
-            <p>Version: 1.0.0</p>
-            <p>Local data storage using browser's LocalStorage</p>
+            {renderActiveTabContent()}
           </div>
         </div>
       </div>
