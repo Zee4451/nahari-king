@@ -139,6 +139,20 @@ const SettingsPage = () => {
     }
   }, []);
   
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (mobileMenuOpen && window.innerWidth <= 768) {
+        setMobileMenuOpen(false);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
+  
   // Save menu items to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('nalliNihariMenuItems', JSON.stringify(menuItems));
@@ -403,6 +417,7 @@ const SettingsPage = () => {
   };
 
   const [activeTab, setActiveTab] = useState('menu');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const tabs = [
     { id: 'menu', label: 'Menu Items', icon: '📋' },
@@ -650,13 +665,23 @@ const SettingsPage = () => {
         <div className="sidebar-nav">
           <div className="sidebar-header">
             <h2>Settings</h2>
+            <button 
+              className="hamburger-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
           </div>
-          <nav className="nav-menu">
+          <nav className={`nav-menu ${mobileMenuOpen ? 'open' : ''}`}>
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setMobileMenuOpen(false); // Close menu on selection
+                }}
               >
                 <span className="nav-icon">{tab.icon}</span>
                 <span className="nav-text">{tab.label}</span>
