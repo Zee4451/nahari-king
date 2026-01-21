@@ -1627,3 +1627,119 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Mobile-Friendly Reordering Controls */
+.menu-mode-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.mode-toggle-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #007bff;
+  background-color: #007bff;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.mode-toggle-btn.reorder-active {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.mode-description {
+  font-size: 0.85rem;
+  color: #666;
+  flex: 1;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+.reorder-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.reorder-btn {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #007bff;
+  background-color: #007bff;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  min-width: 30px;
+  text-align: center;
+}
+
+.reorder-btn.up-btn {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.reorder-btn.down-btn {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+
+.reorder-btn:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.position-input {
+  width: 50px;
+  padding: 0.3rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Responsive adjustments for touch devices */
+@media (max-width: 768px) {
+  .menu-mode-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  
+  .reorder-controls {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .reorder-btn {
+    padding: 0.5rem;
+    min-width: 36px;
+    font-size: 1rem;
+  }
+  
+  .position-input {
+    width: 60px;
+    padding: 0.4rem;
+  }
+  
+  .mode-description {
+    font-size: 0.8rem;
+  }
+  
+  .actions-cell {
+    min-width: 120px;
+  }
+}

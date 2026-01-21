@@ -73,6 +73,34 @@ const SettingsPage = () => {
     
     setMenuItems(updatedMenuItems);
   };
+  
+  // Function to move item up in sequence
+  const moveItemUp = (currentIndex) => {
+    if (currentIndex > 0) {
+      moveItem(currentIndex, currentIndex - 1);
+    }
+  };
+  
+  // Function to move item down in sequence
+  const moveItemDown = (currentIndex) => {
+    if (currentIndex < menuItems.length - 1) {
+      moveItem(currentIndex, currentIndex + 1);
+    }
+  };
+  
+  // Function to move item to specific position
+  const moveToPosition = (currentIndex, newPosition) => {
+    const clampedPosition = Math.max(0, Math.min(menuItems.length - 1, newPosition - 1));
+    if (currentIndex !== clampedPosition) {
+      moveItem(currentIndex, clampedPosition);
+    }
+  };
+  
+  // Toggle reorder mode
+  const toggleReorderMode = () => {
+    setReorderMode(!reorderMode);
+    setEditingId(null); // Exit edit mode when entering reorder mode
+  };
   // Menu items state
   const [menuItems, setMenuItems] = useState([
     { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true, sequence: 1 },
@@ -95,6 +123,7 @@ const SettingsPage = () => {
   });
   
   const [editingId, setEditingId] = useState(null);
+  const [reorderMode, setReorderMode] = useState(false);
   
   // Load menu items from localStorage on component mount
   useEffect(() => {
@@ -291,28 +320,13 @@ const SettingsPage = () => {
     setEditingId(null);
   };
   
-  // Drag source and drop target for menu items
+  // Menu item row component with reordering controls
   const MenuItemRow = ({ item, index }) => {
-    const [{ isDragging }, drag] = useDrag({
-      type: ITEM_TYPE,
-      item: { index },
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging(),
-      }),
-    });
-
-    const [, drop] = useDrop({
-      accept: ITEM_TYPE,
-      hover: (draggedItem) => {
-        if (draggedItem.index !== index) {
-          moveItem(draggedItem.index, index);
-          draggedItem.index = index;
-        }
-      },
-    });
-
+    const sortedMenuItems = menuItems.slice().sort((a, b) => a.sequence - b.sequence);
+    const currentIndex = sortedMenuItems.findIndex(menuItem => menuItem.id === item.id);
+    
     return (
-      <tr ref={(node) => drag(drop(node))} style={{ opacity: isDragging ? 0.5 : 1 }}>
+      <tr>
         <td data-label="Seq">{item.sequence}</td>
         <td data-label="ID">{item.id}</td>
         <td data-label="Name">{item.name}</td>
@@ -322,27 +336,60 @@ const SettingsPage = () => {
             {item.available ? '✓ Available' : '✗ Unavailable'}
           </span>
         </td>
-        <td data-label="Actions">
-          <button 
-            className="export-btn" 
-            onClick={() => startEdit(item)}
-            disabled={editingId}
-          >
-            Edit
-          </button>
-          <button 
-            className="export-btn" 
-            onClick={() => toggleAvailability(item.id)}
-          >
-            {item.available ? 'Hide' : 'Show'}
-          </button>
-          <button 
-            className="danger-btn" 
-            onClick={() => deleteMenuItem(item.id)}
-            disabled={editingId}
-          >
-            Delete
-          </button>
+        <td data-label="Actions" className="actions-cell">
+          {reorderMode ? (
+            <div className="reorder-controls">
+              <button 
+                className="reorder-btn up-btn" 
+                onClick={() => moveItemUp(currentIndex)}
+                disabled={currentIndex === 0}
+                title="Move Up"
+              >
+                ↑
+              </button>
+              <button 
+                className="reorder-btn down-btn" 
+                onClick={() => moveItemDown(currentIndex)}
+                disabled={currentIndex === menuItems.length - 1}
+                title="Move Down"
+              >
+                ↓
+              </button>
+              <input
+                type="number"
+                className="position-input"
+                min="1"
+                max={menuItems.length}
+                value={item.sequence}
+                onChange={(e) => moveToPosition(currentIndex, parseInt(e.target.value) || 1)}
+                title="Set Position"
+              />
+            </div>
+          ) : (
+            <>
+              <button 
+                className="export-btn" 
+                onClick={() => startEdit(item)}
+                disabled={editingId || reorderMode}
+              >
+                Edit
+              </button>
+              <button 
+                className="export-btn" 
+                onClick={() => toggleAvailability(item.id)}
+                disabled={reorderMode}
+              >
+                {item.available ? 'Hide' : 'Show'}
+              </button>
+              <button 
+                className="danger-btn" 
+                onClick={() => deleteMenuItem(item.id)}
+                disabled={editingId || reorderMode}
+              >
+                Delete
+              </button>
+            </>
+          )}
         </td>
       </tr>
     );
@@ -432,6 +479,19 @@ const SettingsPage = () => {
           
           <div className="setting-item">
             <h3>Existing Menu Items</h3>
+            <div className="menu-mode-controls">
+              <button 
+                className={`mode-toggle-btn ${reorderMode ? 'reorder-active' : 'edit-active'}`}
+                onClick={toggleReorderMode}
+              >
+                {reorderMode ? 'Exit Reorder Mode' : 'Enter Reorder Mode'}
+              </button>
+              {reorderMode && (
+                <span className="mode-description">
+                  Tap ↑↓ arrows or enter position numbers to reorder items
+                </span>
+              )}
+            </div>
             <div className="menu-items-list">
               {menuItems.length === 0 ? (
                 <p>No menu items found. Add some items above.</p>
