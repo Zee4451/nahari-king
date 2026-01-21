@@ -124,6 +124,8 @@ const SettingsPage = () => {
   
   const [editingId, setEditingId] = useState(null);
   const [reorderMode, setReorderMode] = useState(false);
+  const [activeTab, setActiveTab] = useState('menu');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Load menu items from localStorage on component mount
   useEffect(() => {
@@ -416,9 +418,6 @@ const SettingsPage = () => {
     ));
   };
 
-  const [activeTab, setActiveTab] = useState('menu');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
   const tabs = [
     { id: 'menu', label: 'Menu Items', icon: '📋' },
     { id: 'tables', label: 'Tables', icon: '🪑' },
