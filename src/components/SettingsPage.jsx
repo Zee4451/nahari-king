@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import NavigationBar from './NavigationBar';
@@ -58,7 +58,7 @@ const SettingsPage = () => {
       if (unsubscribe) unsubscribe();
     };
   }, []);
-  
+
   // Function to move an item from one position to another
   const moveItem = (fromIndex, toIndex) => {
     const newMenuItems = [...menuItems];
@@ -73,7 +73,7 @@ const SettingsPage = () => {
     
     setMenuItems(updatedMenuItems);
   };
-  
+
   // Function to move item up in sequence
   const moveItemUp = (currentIndex) => {
     if (currentIndex > 0) {
@@ -101,6 +101,7 @@ const SettingsPage = () => {
     setReorderMode(!reorderMode);
     setEditingId(null); // Exit edit mode when entering reorder mode
   };
+  
   // Menu items state
   const [menuItems, setMenuItems] = useState([
     { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true, sequence: 1 },
@@ -126,6 +127,7 @@ const SettingsPage = () => {
   const [reorderMode, setReorderMode] = useState(false);
   const [activeTab, setActiveTab] = useState('menu');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Load menu items from localStorage on component mount
   useEffect(() => {
@@ -140,17 +142,11 @@ const SettingsPage = () => {
       setMenuItems(itemsWithSequence);
     }
   }, []);
-  
-  // Log state changes for debugging
-  useEffect(() => {
-    console.log('mobileMenuOpen state changed to:', mobileMenuOpen);
-  }, [mobileMenuOpen]);
-  
+
   // Close mobile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (mobileMenuOpen && window.innerWidth <= 768) {
-        console.log('Click outside detected, closing menu');
+      if (mobileMenuOpen && window.innerWidth <= 1200) {
         setMobileMenuOpen(false);
       }
     };
@@ -160,7 +156,7 @@ const SettingsPage = () => {
       document.removeEventListener('click', handleClickOutside);
     };
   }, [mobileMenuOpen]);
-  
+
   // Save menu items to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('nalliNihariMenuItems', JSON.stringify(menuItems));
@@ -168,7 +164,16 @@ const SettingsPage = () => {
     // Dispatch a custom event to notify other components of the update
     window.dispatchEvent(new CustomEvent('menuItemsUpdated'));
   }, [menuItems]);
-  
+
+  // Filter menu items based on search term
+  const filteredMenuItems = useMemo(() => {
+    if (!searchTerm) return menuItems;
+    return menuItems.filter(item => 
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.id.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [menuItems, searchTerm]);
+
   const clearAllData = () => {
     if (window.confirm('Are you sure you want to clear ALL data? This will remove all tables, orders, and history.')) {
       localStorage.removeItem('nalliNihariTables');
@@ -366,6 +371,7 @@ const SettingsPage = () => {
                 onClick={() => moveItemUp(currentIndex)}
                 disabled={currentIndex === 0}
                 title="Move Up"
+                aria-label={`Move ${item.name} up in sequence`}
               >
                 ↑
               </button>
@@ -374,6 +380,7 @@ const SettingsPage = () => {
                 onClick={() => moveItemDown(currentIndex)}
                 disabled={currentIndex === menuItems.length - 1}
                 title="Move Down"
+                aria-label={`Move ${item.name} down in sequence`}
               >
                 ↓
               </button>
@@ -385,28 +392,35 @@ const SettingsPage = () => {
                 value={item.sequence}
                 onChange={(e) => moveToPosition(currentIndex, parseInt(e.target.value) || 1)}
                 title="Set Position"
+                aria-label={`Set position for ${item.name}`}
               />
             </div>
           ) : (
             <>
               <button 
-                className="export-btn" 
+                className="action-btn edit-btn" 
                 onClick={() => startEdit(item)}
                 disabled={editingId || reorderMode}
+                title="Edit item"
+                aria-label={`Edit ${item.name}`}
               >
                 Edit
               </button>
               <button 
-                className="export-btn" 
+                className={`action-btn ${item.available ? 'hide-btn' : 'show-btn'}`} 
                 onClick={() => toggleAvailability(item.id)}
                 disabled={reorderMode}
+                title={item.available ? "Hide item" : "Show item"}
+                aria-label={`${item.available ? "Hide" : "Show"} ${item.name}`}
               >
                 {item.available ? 'Hide' : 'Show'}
               </button>
               <button 
-                className="danger-btn" 
+                className="action-btn delete-btn" 
                 onClick={() => deleteMenuItem(item.id)}
                 disabled={editingId || reorderMode}
+                title="Delete item"
+                aria-label={`Delete ${item.name}`}
               >
                 Delete
               </button>
@@ -438,7 +452,7 @@ const SettingsPage = () => {
           <div className="tab-content">
             <div className="setting-item">
               <h3>{editingId ? 'Edit Menu Item' : 'Add New Menu Item'}</h3>
-              <form onSubmit={editingId ? updateMenuItem : addMenuItem}>
+              <form onSubmit={editingId ? updateMenuItem : addMenuItem} className="menu-form">
                 <div className="form-group">
                   <label htmlFor="itemId">Item ID:</label>
                   <input
@@ -448,6 +462,7 @@ const SettingsPage = () => {
                     onChange={(e) => setNewMenuItem({...newMenuItem, id: e.target.value})}
                     placeholder="Auto-generated if empty"
                     disabled={editingId} // Disable ID field when editing
+                    className="form-control"
                   />
                 </div>
                 
@@ -460,6 +475,7 @@ const SettingsPage = () => {
                     onChange={(e) => setNewMenuItem({...newMenuItem, name: e.target.value})}
                     placeholder="Enter item name"
                     required
+                    className="form-control"
                   />
                 </div>
                 
@@ -474,25 +490,30 @@ const SettingsPage = () => {
                     min="0"
                     step="0.01"
                     required
+                    className="form-control"
                   />
                 </div>
                 
                 <div className="form-group checkbox-group">
-                  <label htmlFor="itemAvailable">Available:</label>
-                  <input
-                    type="checkbox"
-                    id="itemAvailable"
-                    checked={newMenuItem.available}
-                    onChange={(e) => setNewMenuItem({...newMenuItem, available: e.target.checked})}
-                  />
+                  <label htmlFor="itemAvailable" className="checkbox-label">
+                    Available:
+                    <input
+                      type="checkbox"
+                      id="itemAvailable"
+                      checked={newMenuItem.available}
+                      onChange={(e) => setNewMenuItem({...newMenuItem, available: e.target.checked})}
+                      className="checkbox-control"
+                    />
+                    <span className="checkmark"></span>
+                  </label>
                 </div>
                 
                 <div className="form-actions">
-                  <button type="submit" className="export-btn">
+                  <button type="submit" className="btn btn-primary">
                     {editingId ? 'Update Item' : 'Add Item'}
                   </button>
                   {editingId && (
-                    <button type="button" className="danger-btn" onClick={cancelEdit}>
+                    <button type="button" className="btn btn-secondary" onClick={cancelEdit}>
                       Cancel
                     </button>
                   )}
@@ -501,11 +522,25 @@ const SettingsPage = () => {
             </div>
             
             <div className="setting-item">
-              <h3>Existing Menu Items</h3>
+              <div className="menu-header">
+                <h3>Existing Menu Items</h3>
+                <div className="menu-search">
+                  <input
+                    type="text"
+                    placeholder="Search menu items..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-input"
+                    aria-label="Search menu items"
+                  />
+                </div>
+              </div>
+              
               <div className="menu-mode-controls">
                 <button 
                   className={`mode-toggle-btn ${reorderMode ? 'reorder-active' : 'edit-active'}`}
                   onClick={toggleReorderMode}
+                  aria-pressed={reorderMode}
                 >
                   {reorderMode ? 'Exit Reorder Mode' : 'Enter Reorder Mode'}
                 </button>
@@ -515,9 +550,10 @@ const SettingsPage = () => {
                   </span>
                 )}
               </div>
+              
               <div className="menu-items-list">
-                {menuItems.length === 0 ? (
-                  <p>No menu items found. Add some items above.</p>
+                {filteredMenuItems.length === 0 ? (
+                  <p className="no-items-message">No menu items found. {searchTerm ? 'Try a different search term.' : 'Add some items above.'}</p>
                 ) : (
                   <table className="menu-items-table">
                     <thead>
@@ -531,7 +567,7 @@ const SettingsPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {menuItems
+                      {filteredMenuItems
                         .slice()
                         .sort((a, b) => a.sequence - b.sequence) // Sort by sequence
                         .map((item, index) => (
@@ -551,7 +587,7 @@ const SettingsPage = () => {
               <h3>Add New Table</h3>
               <p>Create a new table in the system. Tables will be numbered sequentially.</p>
               <button 
-                className="export-btn" 
+                className="btn btn-primary" 
                 onClick={async () => {
                   // Limit the number of tables to prevent performance issues
                   const allTableIds = Object.keys(tables).map(Number).sort((a, b) => a - b);
@@ -575,7 +611,7 @@ const SettingsPage = () => {
               <p>Manage existing tables in the system:</p>
               <div className="table-management-list">
                 {Object.keys(tables).length === 0 ? (
-                  <p>No tables found. Add a table above.</p>
+                  <p className="no-items-message">No tables found. Add a table above.</p>
                 ) : (
                   <table className="tables-table">
                     <thead>
@@ -596,7 +632,7 @@ const SettingsPage = () => {
                             <td>₹{tableData.total.toFixed(2)}</td>
                             <td>
                               <button 
-                                className="danger-btn" 
+                                className="btn btn-danger" 
                                 onClick={() => {
                                   if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
                                     deleteTable(parseInt(tableId));
@@ -621,7 +657,7 @@ const SettingsPage = () => {
             <div className="setting-item">
               <h3>Export Data</h3>
               <p>Export all tables, order history, and menu items to a JSON file.</p>
-              <button className="export-btn" onClick={exportData}>
+              <button className="btn btn-primary" onClick={exportData}>
                 Export Data
               </button>
             </div>
@@ -629,18 +665,22 @@ const SettingsPage = () => {
             <div className="setting-item">
               <h3>Import Data</h3>
               <p>Import tables, order history, and menu items from a JSON file.</p>
-              <input 
-                type="file" 
-                accept=".json" 
-                onChange={importData} 
-                className="import-input"
-              />
+              <label className="file-upload-label">
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  onChange={importData} 
+                  className="file-upload-input"
+                  aria-label="Import data from JSON file"
+                />
+                <span className="btn btn-secondary">Choose File</span>
+              </label>
             </div>
             
             <div className="setting-item">
               <h3>Clear All Data</h3>
               <p>Remove all tables, orders, history, and menu items. This cannot be undone.</p>
-              <button className="danger-btn" onClick={clearAllData}>
+              <button className="btn btn-danger" onClick={clearAllData}>
                 Clear All Data
               </button>
             </div>
@@ -650,6 +690,7 @@ const SettingsPage = () => {
         return (
           <div className="tab-content">
             <div className="about-content">
+              <h3>About Nalli Nihari POS</h3>
               <p><strong>Nalli Nihari Table Management System</strong></p>
               <p>A fast, lightweight, production-ready POS system for restaurants.</p>
               <p>Version: 1.0.0</p>
@@ -675,13 +716,7 @@ const SettingsPage = () => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('Hamburger clicked! Current state:', mobileMenuOpen);
-                const newState = !mobileMenuOpen;
-                console.log('Setting state to:', newState);
-                setMobileMenuOpen(newState);
-              }}
-              onTouchStart={(e) => {
-                console.log('Touch start detected');
+                setMobileMenuOpen(!mobileMenuOpen);
               }}
               aria-label="Toggle navigation menu"
               type="button"
@@ -698,6 +733,9 @@ const SettingsPage = () => {
                   setActiveTab(tab.id);
                   setMobileMenuOpen(false); // Close menu on selection
                 }}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                tabIndex={activeTab === tab.id ? 0 : -1}
               >
                 <span className="nav-icon">{tab.icon}</span>
                 <span className="nav-text">{tab.label}</span>

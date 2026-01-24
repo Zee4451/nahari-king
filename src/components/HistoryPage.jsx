@@ -1,80 +1,95 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
+import { List } from 'react-window';
 import NavigationBar from './NavigationBar';
+import { getAllHistory, subscribeToHistory } from '../services/firebaseService';
 
 const HistoryPage = () => {
   const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem('nalliNihariHistory');
-      if (savedHistory) {
-        const parsedHistory = JSON.parse(savedHistory);
-        // Ensure parsedHistory is an array
-        setHistory(Array.isArray(parsedHistory) ? parsedHistory : []);
-      } else {
-        setHistory([]);
+    let unsubscribe = null;
+    
+    const loadHistory = async () => {
+      setLoading(true);
+      try {
+        // Subscribe to real-time history updates
+        unsubscribe = subscribeToHistory((updatedHistory) => {
+          setHistory(updatedHistory);
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error('Error loading history:', error);
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading history:', error);
-      setHistory([]);
-    }
+    };
+
+    loadHistory();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  const clearHistory = () => {
-    if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
-      localStorage.removeItem('nalliNihariHistory');
-      setHistory([]);
-    }
-  };
-
-  const restoreOrder = (historyEntry) => {
-    if (!historyEntry || !historyEntry.tableId || !historyEntry.orders) {
-      alert('Invalid history entry');
-      return;
-    }
+  // Memoized history item component for virtual scrolling
+  const HistoryItem = memo(({ index, style, data }) => {
+    const { historyItems } = data;
+    const entry = historyItems[index];
     
-    if (window.confirm(`Restore order for Table ${historyEntry.tableId}?`)) {
-      try {
-        // Get current tables
-        const currentTables = JSON.parse(localStorage.getItem('nalliNihariTables') || '{}');
+    return (
+      <div style={style} className="history-item-virtual">
+        <div className="history-header-row">
+          <div className="history-info">
+            <span className="table-number">Table {entry.tableId}</span>
+            <span className="timestamp">{entry.timestamp}</span>
+            <span className="total-amount">₹{entry.total}</span>
+          </div>
+          <div className="history-actions">
+            <button 
+              className="restore-btn" 
+              onClick={() => alert(`Restore order for Table ${entry.tableId}`)}
+            >
+              Restore
+            </button>
+          </div>
+        </div>
         
-        // Add the restored order to the table
-        const table = currentTables[historyEntry.tableId] || {
-          id: historyEntry.tableId,
-          orders: [],
-          total: 0
-        };
-        
-        // Add the orders from history
-        const ordersToAdd = Array.isArray(historyEntry.orders) ? historyEntry.orders : [];
-        const restoredOrders = [...table.orders, ...ordersToAdd];
-        const newTotal = restoredOrders.reduce((sum, order) => {
-          return sum + (order && typeof order.total === 'number' ? order.total : 0);
-        }, 0);
-        
-        const updatedTables = {
-          ...currentTables,
-          [historyEntry.tableId]: {
-            ...table,
-            orders: restoredOrders,
-            total: newTotal
-          }
-        };
-        
-        localStorage.setItem('nalliNihariTables', JSON.stringify(updatedTables));
-        
-        // Remove from history
-        const updatedHistory = history.filter(item => item.id !== historyEntry.id);
-        localStorage.setItem('nalliNihariHistory', JSON.stringify(updatedHistory));
-        setHistory(updatedHistory);
-        
-        alert(`Order restored to Table ${historyEntry.tableId}`);
-      } catch (error) {
-        console.error('Error restoring order:', error);
-        alert('Error restoring order');
-      }
-    }
-  };
+        <div className="history-orders">
+          {entry.orders.map((order, orderIndex) => (
+            <div key={orderIndex} className="history-order">
+              <h4>Order {orderIndex + 1}</h4>
+              <div className="history-items">
+                {order.items.map((item, itemIndex) => (
+                  <div key={itemIndex} className="history-item-row">
+                    <span className="item-name">{item.name}</span>
+                    <span className="item-qty">x{item.quantity}</span>
+                    <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="order-total">Order Total: ₹{order.total.toFixed(2)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  });
+
+  // Memoized data for virtual list
+  const virtualListData = useMemo(() => ({
+    historyItems: history
+  }), [history]);
+
+  if (loading) {
+    return (
+      <div className="history-page">
+        <NavigationBar currentPage="history" />
+        <div className="page-content">
+          <div className="loading">Loading history...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="history-page">
@@ -82,11 +97,9 @@ const HistoryPage = () => {
       <div className="page-content">
         <div className="history-header">
           <h1>Order History</h1>
-          {history.length > 0 && (
-            <button className="clear-history-btn" onClick={clearHistory}>
-              Clear All History
-            </button>
-          )}
+          <div className="history-stats">
+            <span>Total Entries: {history.length}</span>
+          </div>
         </div>
         
         {history.length === 0 ? (
@@ -94,52 +107,16 @@ const HistoryPage = () => {
             <p>No order history yet.</p>
           </div>
         ) : (
-          <div className="history-list">
-            {[...history].reverse().map((entry) => (
-              <div key={entry.id} className="history-item">
-                <div className="history-header-row">
-                  <div className="history-info">
-                    <span className="table-number">Table {entry.tableId || 'N/A'}</span>
-                    <span className="timestamp">{entry.timestamp || 'N/A'}</span>
-                    <span className="total-amount">₹{typeof entry.total === 'number' ? entry.total.toFixed(2) : '0.00'}</span>
-                  </div>
-                  <div className="history-actions">
-                    <button 
-                      className="restore-btn" 
-                      onClick={() => restoreOrder(entry)}
-                    >
-                      Restore
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="history-orders">
-                  {entry.orders && Array.isArray(entry.orders) ? (
-                    entry.orders.map((order, orderIndex) => (
-                      <div key={orderIndex} className="history-order">
-                        <h4>Order {orderIndex + 1}</h4>
-                        <div className="history-items">
-                          {order.items && Array.isArray(order.items) ? (
-                            order.items.map((item, itemIndex) => (
-                              <div key={itemIndex} className="history-item-row">
-                                <span className="item-name">{item.name}</span>
-                                <span className="item-qty">x{item.quantity}</span>
-                                <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="no-items">No items in order</div>
-                          )}
-                        </div>
-                        <div className="order-total">Order Total: ₹{order.total ? order.total.toFixed(2) : '0.00'}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="no-orders">No orders in history entry</div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="history-list-virtual">
+            <List
+              height={600}
+              itemCount={history.length}
+              itemSize={200}
+              itemData={virtualListData}
+              overscanCount={5}
+            >
+              {HistoryItem}
+            </List>
           </div>
         )}
       </div>
@@ -147,4 +124,4 @@ const HistoryPage = () => {
   );
 };
 
-export default HistoryPage;
+export default memo(HistoryPage);
