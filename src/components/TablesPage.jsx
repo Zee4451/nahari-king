@@ -87,7 +87,16 @@ const TablesPage = () => {
     };
   }, []);
 
-  const [menuItems, setMenuItems] = useState([]);
+  const [menuItems, setMenuItems] = useState([
+    { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true },
+    { id: 'butterKhameeriRoti', name: 'Butter Khameeri Roti', price: 15, available: true },
+    { id: 'nalliNihariHalf', name: 'Nalli Nihari Half', price: 160, available: true },
+    { id: 'nalliNihariFull', name: 'Nalli Nihari Full', price: 300, available: true },
+    { id: 'amulButterTadka', name: 'Amul Butter Tadka', price: 40, available: true },
+    { id: 'waterBottle', name: 'Water Bottle', price: 10, available: true },
+    { id: 'nalli', name: 'Nalli (Bone Marrow)', price: 50, available: true },
+    { id: 'extraSoup', name: 'Extra Soup', price: 25, available: true },
+  ]);
 
   // Load menu items from Firebase and subscribe to real-time updates
   useEffect(() => {
@@ -95,32 +104,28 @@ const TablesPage = () => {
     
     const loadMenuItems = async () => {
       try {
+        console.log('Loading menu items...');
         // Load menu items from Firebase
         const firebaseMenuItems = await getAllMenuItems();
+        console.log('Firebase menu items:', firebaseMenuItems);
+        
         if (firebaseMenuItems.length > 0) {
           // Use Firebase data if it exists
+          console.log('Using Firebase menu items');
           setMenuItems(firebaseMenuItems.filter(item => item.available));
         } else {
-          // If no Firebase data exists, migrate from localStorage if available
+          console.log('No Firebase menu items found, keeping default items');
+          // If no Firebase data exists, try to migrate from localStorage if available
           const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+          console.log('LocalStorage menu items:', savedMenuItems);
+          
           if (savedMenuItems) {
             const parsedItems = JSON.parse(savedMenuItems);
             const availableItems = parsedItems.filter(item => item.available);
+            console.log('Using localStorage menu items');
             setMenuItems(availableItems);
-          } else {
-            // Initialize with default menu items if neither Firebase nor localStorage exists
-            const defaultMenuItems = [
-              { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true },
-              { id: 'butterKhameeriRoti', name: 'Butter Khameeri Roti', price: 15, available: true },
-              { id: 'nalliNihariHalf', name: 'Nalli Nihari Half', price: 160, available: true },
-              { id: 'nalliNihariFull', name: 'Nalli Nihari Full', price: 300, available: true },
-              { id: 'amulButterTadka', name: 'Amul Butter Tadka', price: 40, available: true },
-              { id: 'waterBottle', name: 'Water Bottle', price: 10, available: true },
-              { id: 'nalli', name: 'Nalli (Bone Marrow)', price: 50, available: true },
-              { id: 'extraSoup', name: 'Extra Soup', price: 25, available: true },
-            ];
-            setMenuItems(defaultMenuItems);
           }
+          // If no localStorage either, keep the default items that were set in useState
         }
       } catch (error) {
         console.error('Error loading menu items:', error);
@@ -136,7 +141,10 @@ const TablesPage = () => {
     
     // Subscribe to real-time updates
     unsubscribe = subscribeToMenuItems((updatedMenuItems) => {
-      setMenuItems(updatedMenuItems.filter(item => item.available));
+      console.log('Menu items updated:', updatedMenuItems);
+      if (updatedMenuItems.length > 0) {
+        setMenuItems(updatedMenuItems.filter(item => item.available));
+      }
     });
     
     // Cleanup subscription

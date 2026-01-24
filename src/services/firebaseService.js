@@ -312,16 +312,17 @@ export const updateMenuItemSequence = async (menuItemId, sequence) => {
   }
 };
 
-// Bulk update menu items (for reordering)
+// Bulk update menu items (for reordering) - Sequential update to ensure atomicity
 export const bulkUpdateMenuItems = async (menuItems) => {
   try {
     // Validate menuItems is an array
     if (!Array.isArray(menuItems)) {
       console.error('Invalid menuItems array:', menuItems);
-      return;
+      throw new Error('Invalid menuItems array');
     }
     
-    const batchUpdates = menuItems.map(async (item) => {
+    // Process updates sequentially to ensure atomicity and avoid race conditions
+    for (const item of menuItems) {
       if (item.id) {
         await updateDoc(doc(menuItemsCollection, String(item.id)), {
           sequence: item.sequence,
@@ -330,11 +331,12 @@ export const bulkUpdateMenuItems = async (menuItems) => {
           available: item.available
         });
       }
-    });
+    }
     
-    await Promise.all(batchUpdates);
+    console.log('Successfully updated menu item sequences');
   } catch (error) {
     console.error('Error bulk updating menu items:', error);
+    throw error; // Re-throw to allow caller to handle
   }
 };
 

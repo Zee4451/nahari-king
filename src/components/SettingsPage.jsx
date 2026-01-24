@@ -80,25 +80,37 @@ const SettingsPage = () => {
     }));
     
     try {
-      // Update all items in Firebase
+      // Update all items in Firebase sequentially
       await bulkUpdateMenuItems(updatedMenuItems);
+      console.log('Menu item sequence updated successfully');
     } catch (error) {
       console.error('Error updating menu item sequence:', error);
       alert('Failed to update item sequence. Please try again.');
+      throw error; // Re-throw to allow caller to handle
     }
   };
 
   // Function to move item up in sequence
   const moveItemUp = async (currentIndex) => {
     if (currentIndex > 0) {
-      await moveItem(currentIndex, currentIndex - 1);
+      try {
+        await moveItem(currentIndex, currentIndex - 1);
+      } catch (error) {
+        console.error('Error moving item up:', error);
+        throw error;
+      }
     }
   };
   
   // Function to move item down in sequence
   const moveItemDown = async (currentIndex) => {
     if (currentIndex < menuItems.length - 1) {
-      await moveItem(currentIndex, currentIndex + 1);
+      try {
+        await moveItem(currentIndex, currentIndex + 1);
+      } catch (error) {
+        console.error('Error moving item down:', error);
+        throw error;
+      }
     }
   };
   
@@ -106,7 +118,12 @@ const SettingsPage = () => {
   const moveToPosition = async (currentIndex, newPosition) => {
     const clampedPosition = Math.max(0, Math.min(menuItems.length - 1, newPosition - 1));
     if (currentIndex !== clampedPosition) {
-      await moveItem(currentIndex, clampedPosition);
+      try {
+        await moveItem(currentIndex, clampedPosition);
+      } catch (error) {
+        console.error('Error moving to position:', error);
+        throw error;
+      }
     }
   };
   
@@ -140,15 +157,21 @@ const SettingsPage = () => {
     
     const loadMenuItems = async () => {
       try {
+        console.log('SettingsPage: Loading menu items...');
         // First load existing menu items from Firebase
         const firebaseMenuItems = await getAllMenuItems();
+        console.log('SettingsPage: Firebase menu items:', firebaseMenuItems);
         
         if (firebaseMenuItems.length > 0) {
           // Use Firebase data if it exists
+          console.log('SettingsPage: Using Firebase menu items');
           setMenuItems(firebaseMenuItems);
         } else {
+          console.log('SettingsPage: No Firebase menu items found');
           // If no Firebase data exists, migrate from localStorage if available
           const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+          console.log('SettingsPage: LocalStorage menu items:', savedMenuItems);
+          
           if (savedMenuItems) {
             const parsedItems = JSON.parse(savedMenuItems);
             const itemsWithSequence = parsedItems.map((item, index) => ({
@@ -162,11 +185,13 @@ const SettingsPage = () => {
               addMenuItemFirebase(item)
             );
             await Promise.all(savePromises);
+            console.log('SettingsPage: Migrated localStorage items to Firebase');
             setMenuItems(itemsWithSequence);
             
             // Clear localStorage after migration
             localStorage.removeItem('nalliNihariMenuItems');
           } else {
+            console.log('SettingsPage: No localStorage menu items found, creating defaults');
             // Initialize with default menu items if neither Firebase nor localStorage exists
             const defaultMenuItems = [
               { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true, sequence: 1 },
@@ -183,11 +208,12 @@ const SettingsPage = () => {
               addMenuItemFirebase(item)
             );
             await Promise.all(savePromises);
+            console.log('SettingsPage: Created default menu items in Firebase');
             setMenuItems(defaultMenuItems);
           }
         }
       } catch (error) {
-        console.error('Error loading menu items:', error);
+        console.error('SettingsPage: Error loading menu items:', error);
         // Fallback to localStorage if Firebase fails
         const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
         if (savedMenuItems) {
@@ -196,6 +222,7 @@ const SettingsPage = () => {
             ...item,
             sequence: item.sequence !== undefined ? item.sequence : index + 1
           }));
+          console.log('SettingsPage: Using localStorage fallback');
           setMenuItems(itemsWithSequence);
         }
       }
@@ -205,6 +232,7 @@ const SettingsPage = () => {
     
     // Subscribe to real-time updates
     unsubscribe = subscribeToMenuItems((updatedMenuItems) => {
+      console.log('SettingsPage: Menu items updated:', updatedMenuItems);
       setMenuItems(updatedMenuItems);
     });
     
@@ -260,33 +288,39 @@ const SettingsPage = () => {
       } catch (error) {
         console.error('Error clearing data:', error);
         alert('Failed to clear all data. Please try again.');
+        throw error;
       }
     }
   };
 
   const exportData = async () => {
-    const tables = JSON.parse(localStorage.getItem('nalliNihariTables') || '{}');
-    const history = JSON.parse(localStorage.getItem('nalliNihariHistory') || '[]');
-    
-    // Get fresh menu items from Firebase
-    const firebaseMenuItems = await getAllMenuItems();
-    
-    const data = {
-      tables,
-      history,
-      menuItems: firebaseMenuItems,
-      exportedAt: new Date().toISOString()
-    };
-    
-    const dataStr = JSON.stringify(data, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
-    const exportFileDefaultName = 'nalli-nihari-data.json';
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    try {
+      const tables = JSON.parse(localStorage.getItem('nalliNihariTables') || '{}');
+      const history = JSON.parse(localStorage.getItem('nalliNihariHistory') || '[]');
+      
+      // Get fresh menu items from Firebase
+      const firebaseMenuItems = await getAllMenuItems();
+      
+      const data = {
+        tables,
+        history,
+        menuItems: firebaseMenuItems,
+        exportedAt: new Date().toISOString()
+      };
+      
+      const dataStr = JSON.stringify(data, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      
+      const exportFileDefaultName = 'nalli-nihari-data.json';
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   const importData = async (event) => {
@@ -322,6 +356,7 @@ const SettingsPage = () => {
           alert('Data imported successfully! The page will reload.');
           window.location.reload();
         } catch (error) {
+          console.error('Error importing data:', error);
           alert('Error importing data. Please check the file format.');
         }
       };
@@ -378,6 +413,7 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error adding menu item:', error);
       alert('Failed to add menu item. Please try again.');
+      throw error;
     }
   };
   
@@ -395,10 +431,14 @@ const SettingsPage = () => {
   
   // Handle form submission (either add or update)
   const handleSubmit = async (e) => {
-    if (editingId) {
-      await updateMenuItem(e);
-    } else {
-      await addMenuItem(e);
+    try {
+      if (editingId) {
+        await updateMenuItem(e);
+      } else {
+        await addMenuItem(e);
+      }
+    } catch (error) {
+      console.error('Error in form submission:', error);
     }
   };
   
@@ -437,6 +477,7 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error updating menu item:', error);
       alert('Failed to update menu item. Please try again.');
+      throw error;
     }
   };
   
@@ -449,6 +490,7 @@ const SettingsPage = () => {
       } catch (error) {
         console.error('Error deleting menu item:', error);
         alert('Failed to delete menu item. Please try again.');
+        throw error;
       }
     }
   };
@@ -486,7 +528,13 @@ const SettingsPage = () => {
             <div className="reorder-controls">
               <button 
                 className="reorder-btn up-btn" 
-                onClick={() => moveItemUp(currentIndex)}
+                onClick={async () => {
+                  try {
+                    await moveItemUp(currentIndex);
+                  } catch (error) {
+                    console.error('Error moving item up:', error);
+                  }
+                }}
                 disabled={currentIndex === 0}
                 title="Move Up"
                 aria-label={`Move ${item.name} up in sequence`}
@@ -495,7 +543,13 @@ const SettingsPage = () => {
               </button>
               <button 
                 className="reorder-btn down-btn" 
-                onClick={() => moveItemDown(currentIndex)}
+                onClick={async () => {
+                  try {
+                    await moveItemDown(currentIndex);
+                  } catch (error) {
+                    console.error('Error moving item down:', error);
+                  }
+                }}
                 disabled={currentIndex === menuItems.length - 1}
                 title="Move Down"
                 aria-label={`Move ${item.name} down in sequence`}
@@ -508,7 +562,13 @@ const SettingsPage = () => {
                 min="1"
                 max={menuItems.length}
                 value={item.sequence}
-                onChange={(e) => moveToPosition(currentIndex, parseInt(e.target.value) || 1)}
+                onChange={async (e) => {
+                  try {
+                    await moveToPosition(currentIndex, parseInt(e.target.value) || 1);
+                  } catch (error) {
+                    console.error('Error moving to position:', error);
+                  }
+                }}
                 title="Set Position"
                 aria-label={`Set position for ${item.name}`}
               />
@@ -526,7 +586,13 @@ const SettingsPage = () => {
               </button>
               <button 
                 className={`action-btn ${item.available ? 'hide-btn' : 'show-btn'}`} 
-                onClick={() => toggleAvailability(item.id)}
+                onClick={async () => {
+                  try {
+                    await toggleAvailability(item.id);
+                  } catch (error) {
+                    console.error('Error toggling availability:', error);
+                  }
+                }}
                 disabled={reorderMode}
                 title={item.available ? "Hide item" : "Show item"}
                 aria-label={`${item.available ? "Hide" : "Show"} ${item.name}`}
@@ -535,7 +601,13 @@ const SettingsPage = () => {
               </button>
               <button 
                 className="action-btn delete-btn" 
-                onClick={() => deleteMenuItem(item.id)}
+                onClick={async () => {
+                  try {
+                    await deleteMenuItem(item.id);
+                  } catch (error) {
+                    console.error('Error deleting menu item:', error);
+                  }
+                }}
                 disabled={editingId || reorderMode}
                 title="Delete item"
                 aria-label={`Delete ${item.name}`}
@@ -558,6 +630,7 @@ const SettingsPage = () => {
       } catch (error) {
         console.error('Error toggling menu item availability:', error);
         alert('Failed to update item availability. Please try again.');
+        throw error;
       }
     }
   };
