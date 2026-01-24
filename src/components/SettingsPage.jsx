@@ -6,7 +6,14 @@ import {
   getAllTables,
   subscribeToTables,
   updateTable,
-  deleteTable as deleteTableFirebase
+  deleteTable as deleteTableFirebase,
+  getAllMenuItems,
+  subscribeToMenuItems,
+  addMenuItem as addMenuItemFirebase,
+  updateMenuItem as updateMenuItemFirebase,
+  deleteMenuItem as deleteMenuItemFirebase,
+  bulkUpdateMenuItems,
+  toggleMenuItemAvailability
 } from '../services/firebaseService';
 
 const SettingsPage = () => {
@@ -60,8 +67,9 @@ const SettingsPage = () => {
   }, []);
 
   // Function to move an item from one position to another
-  const moveItem = (fromIndex, toIndex) => {
-    const newMenuItems = [...menuItems];
+  const moveItem = async (fromIndex, toIndex) => {
+    const sortedMenuItems = menuItems.slice().sort((a, b) => a.sequence - b.sequence);
+    const newMenuItems = [...sortedMenuItems];
     const [movedItem] = newMenuItems.splice(fromIndex, 1);
     newMenuItems.splice(toIndex, 0, movedItem);
     
@@ -71,28 +79,34 @@ const SettingsPage = () => {
       sequence: index + 1
     }));
     
-    setMenuItems(updatedMenuItems);
+    try {
+      // Update all items in Firebase
+      await bulkUpdateMenuItems(updatedMenuItems);
+    } catch (error) {
+      console.error('Error updating menu item sequence:', error);
+      alert('Failed to update item sequence. Please try again.');
+    }
   };
 
   // Function to move item up in sequence
-  const moveItemUp = (currentIndex) => {
+  const moveItemUp = async (currentIndex) => {
     if (currentIndex > 0) {
-      moveItem(currentIndex, currentIndex - 1);
+      await moveItem(currentIndex, currentIndex - 1);
     }
   };
   
   // Function to move item down in sequence
-  const moveItemDown = (currentIndex) => {
+  const moveItemDown = async (currentIndex) => {
     if (currentIndex < menuItems.length - 1) {
-      moveItem(currentIndex, currentIndex + 1);
+      await moveItem(currentIndex, currentIndex + 1);
     }
   };
   
   // Function to move item to specific position
-  const moveToPosition = (currentIndex, newPosition) => {
+  const moveToPosition = async (currentIndex, newPosition) => {
     const clampedPosition = Math.max(0, Math.min(menuItems.length - 1, newPosition - 1));
     if (currentIndex !== clampedPosition) {
-      moveItem(currentIndex, clampedPosition);
+      await moveItem(currentIndex, clampedPosition);
     }
   };
   
@@ -103,16 +117,7 @@ const SettingsPage = () => {
   };
   
   // Menu items state
-  const [menuItems, setMenuItems] = useState([
-    { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true, sequence: 1 },
-    { id: 'butterKhameeriRoti', name: 'Butter Khameeri Roti', price: 15, available: true, sequence: 2 },
-    { id: 'nalliNihariHalf', name: 'Nalli Nihari Half', price: 160, available: true, sequence: 3 },
-    { id: 'nalliNihariFull', name: 'Nalli Nihari Full', price: 300, available: true, sequence: 4 },
-    { id: 'amulButterTadka', name: 'Amul Butter Tadka', price: 40, available: true, sequence: 5 },
-    { id: 'waterBottle', name: 'Water Bottle', price: 10, available: true, sequence: 6 },
-    { id: 'nalli', name: 'Nalli (Bone Marrow)', price: 50, available: true, sequence: 7 },
-    { id: 'extraSoup', name: 'Extra Soup', price: 25, available: true, sequence: 8 },
-  ]);
+  const [menuItems, setMenuItems] = useState([]);
   
   // Form state for adding/editing menu items
   const [newMenuItem, setNewMenuItem] = useState({
@@ -129,18 +134,84 @@ const SettingsPage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Load menu items from localStorage on component mount
+  // Load menu items from Firebase on component mount and subscribe to real-time updates
   useEffect(() => {
-    const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
-    if (savedMenuItems) {
-      const parsedItems = JSON.parse(savedMenuItems);
-      // If sequence property doesn't exist, assign default sequence values
-      const itemsWithSequence = parsedItems.map((item, index) => ({
-        ...item,
-        sequence: item.sequence !== undefined ? item.sequence : index + 1
-      }));
-      setMenuItems(itemsWithSequence);
-    }
+    let unsubscribe = null;
+    
+    const loadMenuItems = async () => {
+      try {
+        // First load existing menu items from Firebase
+        const firebaseMenuItems = await getAllMenuItems();
+        
+        if (firebaseMenuItems.length > 0) {
+          // Use Firebase data if it exists
+          setMenuItems(firebaseMenuItems);
+        } else {
+          // If no Firebase data exists, migrate from localStorage if available
+          const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+          if (savedMenuItems) {
+            const parsedItems = JSON.parse(savedMenuItems);
+            const itemsWithSequence = parsedItems.map((item, index) => ({
+              ...item,
+              sequence: item.sequence !== undefined ? item.sequence : index + 1,
+              id: item.id || `item_${Date.now()}_${index}` // Ensure unique IDs
+            }));
+            
+            // Save to Firebase and update state
+            const savePromises = itemsWithSequence.map(item => 
+              addMenuItemFirebase(item)
+            );
+            await Promise.all(savePromises);
+            setMenuItems(itemsWithSequence);
+            
+            // Clear localStorage after migration
+            localStorage.removeItem('nalliNihariMenuItems');
+          } else {
+            // Initialize with default menu items if neither Firebase nor localStorage exists
+            const defaultMenuItems = [
+              { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true, sequence: 1 },
+              { id: 'butterKhameeriRoti', name: 'Butter Khameeri Roti', price: 15, available: true, sequence: 2 },
+              { id: 'nalliNihariHalf', name: 'Nalli Nihari Half', price: 160, available: true, sequence: 3 },
+              { id: 'nalliNihariFull', name: 'Nalli Nihari Full', price: 300, available: true, sequence: 4 },
+              { id: 'amulButterTadka', name: 'Amul Butter Tadka', price: 40, available: true, sequence: 5 },
+              { id: 'waterBottle', name: 'Water Bottle', price: 10, available: true, sequence: 6 },
+              { id: 'nalli', name: 'Nalli (Bone Marrow)', price: 50, available: true, sequence: 7 },
+              { id: 'extraSoup', name: 'Extra Soup', price: 25, available: true, sequence: 8 },
+            ];
+            
+            const savePromises = defaultMenuItems.map(item => 
+              addMenuItemFirebase(item)
+            );
+            await Promise.all(savePromises);
+            setMenuItems(defaultMenuItems);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading menu items:', error);
+        // Fallback to localStorage if Firebase fails
+        const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+        if (savedMenuItems) {
+          const parsedItems = JSON.parse(savedMenuItems);
+          const itemsWithSequence = parsedItems.map((item, index) => ({
+            ...item,
+            sequence: item.sequence !== undefined ? item.sequence : index + 1
+          }));
+          setMenuItems(itemsWithSequence);
+        }
+      }
+    };
+    
+    loadMenuItems();
+    
+    // Subscribe to real-time updates
+    unsubscribe = subscribeToMenuItems((updatedMenuItems) => {
+      setMenuItems(updatedMenuItems);
+    });
+    
+    // Cleanup subscription
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Close mobile menu when clicking outside
@@ -157,11 +228,8 @@ const SettingsPage = () => {
     };
   }, [mobileMenuOpen]);
 
-  // Save menu items to localStorage whenever they change
+  // Dispatch a custom event to notify other components of the update
   useEffect(() => {
-    localStorage.setItem('nalliNihariMenuItems', JSON.stringify(menuItems));
-    
-    // Dispatch a custom event to notify other components of the update
     window.dispatchEvent(new CustomEvent('menuItemsUpdated'));
   }, [menuItems]);
 
@@ -174,22 +242,39 @@ const SettingsPage = () => {
     );
   }, [menuItems, searchTerm]);
 
-  const clearAllData = () => {
+  const clearAllData = async () => {
     if (window.confirm('Are you sure you want to clear ALL data? This will remove all tables, orders, and history.')) {
-      localStorage.removeItem('nalliNihariTables');
-      localStorage.removeItem('nalliNihariHistory');
-      window.location.reload();
+      try {
+        // Clear localStorage
+        localStorage.removeItem('nalliNihariTables');
+        localStorage.removeItem('nalliNihariHistory');
+        
+        // Clear Firebase menu items
+        const menuItemsToDelete = await getAllMenuItems();
+        const deletePromises = menuItemsToDelete.map(item => 
+          deleteMenuItemFirebase(item.id)
+        );
+        await Promise.all(deletePromises);
+        
+        window.location.reload();
+      } catch (error) {
+        console.error('Error clearing data:', error);
+        alert('Failed to clear all data. Please try again.');
+      }
     }
   };
 
-  const exportData = () => {
+  const exportData = async () => {
     const tables = JSON.parse(localStorage.getItem('nalliNihariTables') || '{}');
     const history = JSON.parse(localStorage.getItem('nalliNihariHistory') || '[]');
+    
+    // Get fresh menu items from Firebase
+    const firebaseMenuItems = await getAllMenuItems();
     
     const data = {
       tables,
       history,
-      menuItems,
+      menuItems: firebaseMenuItems,
       exportedAt: new Date().toISOString()
     };
     
@@ -204,11 +289,11 @@ const SettingsPage = () => {
     linkElement.click();
   };
 
-  const importData = (event) => {
+  const importData = async (event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
           
@@ -221,8 +306,17 @@ const SettingsPage = () => {
           }
           
           if (importedData.menuItems) {
-            localStorage.setItem('nalliNihariMenuItems', JSON.stringify(importedData.menuItems));
-            setMenuItems(importedData.menuItems);
+            // Import menu items to Firebase
+            const menuItemsWithIds = importedData.menuItems.map((item, index) => ({
+              ...item,
+              id: item.id || `imported_${Date.now()}_${index}`,
+              sequence: item.sequence !== undefined ? item.sequence : index + 1
+            }));
+            
+            const savePromises = menuItemsWithIds.map(item => 
+              addMenuItemFirebase(item)
+            );
+            await Promise.all(savePromises);
           }
           
           alert('Data imported successfully! The page will reload.');
@@ -236,7 +330,7 @@ const SettingsPage = () => {
   };
   
   // CREATE: Add a new menu item
-  const addMenuItem = (e) => {
+  const addMenuItem = async (e) => {
     e.preventDefault();
     
     if (!newMenuItem.name.trim() || !newMenuItem.price) {
@@ -245,7 +339,7 @@ const SettingsPage = () => {
     }
     
     // Generate a unique ID if not provided
-    const id = newMenuItem.id || newMenuItem.name.toLowerCase().replace(/\s+/g, '');
+    const id = newMenuItem.id || newMenuItem.name.toLowerCase().replace(/\s+/g, '') + '_' + Date.now();
     
     // Calculate the sequence number for the new item (append to end)
     const sequence = menuItems.length > 0 ? Math.max(...menuItems.map(item => item.sequence)) + 1 : 1;
@@ -264,18 +358,27 @@ const SettingsPage = () => {
       return;
     }
     
-    setMenuItems([...menuItems, newItem]);
-    
-    // Reset form
-    setNewMenuItem({
-      id: '',
-      name: '',
-      price: '',
-      available: true,
-      sequence: 0
-    });
-    
-    alert('Menu item added successfully!');
+    try {
+      // Add to Firebase
+      const result = await addMenuItemFirebase(newItem);
+      if (result) {
+        // Reset form
+        setNewMenuItem({
+          id: '',
+          name: '',
+          price: '',
+          available: true,
+          sequence: 0
+        });
+        
+        alert('Menu item added successfully!');
+      } else {
+        alert('Failed to add menu item. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error adding menu item:', error);
+      alert('Failed to add menu item. Please try again.');
+    }
   };
   
   // UPDATE: Prepare form for editing a menu item
@@ -290,8 +393,17 @@ const SettingsPage = () => {
     setEditingId(item.id);
   };
   
+  // Handle form submission (either add or update)
+  const handleSubmit = async (e) => {
+    if (editingId) {
+      await updateMenuItem(e);
+    } else {
+      await addMenuItem(e);
+    }
+  };
+  
   // UPDATE: Save changes to a menu item
-  const updateMenuItem = (e) => {
+  const updateMenuItem = async (e) => {
     e.preventDefault();
     
     if (!newMenuItem.name.trim() || !newMenuItem.price) {
@@ -299,39 +411,45 @@ const SettingsPage = () => {
       return;
     }
     
-    const updatedItems = menuItems.map(item => {
-      if (item.id === editingId) {
-        return {
-          id: newMenuItem.id,
-          name: newMenuItem.name.trim(),
-          price: parseFloat(newMenuItem.price),
-          available: newMenuItem.available,
-          sequence: item.sequence // Preserve the sequence when updating
-        };
-      }
-      return item;
-    });
+    const updatedItem = {
+      id: newMenuItem.id,
+      name: newMenuItem.name.trim(),
+      price: parseFloat(newMenuItem.price),
+      available: newMenuItem.available,
+      sequence: menuItems.find(item => item.id === editingId)?.sequence || 1
+    };
     
-    setMenuItems(updatedItems);
-    
-    // Reset form and editing state
-    setNewMenuItem({
-      id: '',
-      name: '',
-      price: '',
-      available: true,
-      sequence: 0
-    });
-    setEditingId(null);
-    
-    alert('Menu item updated successfully!');
+    try {
+      // Update in Firebase
+      await updateMenuItemFirebase(editingId, updatedItem);
+      
+      // Reset form and editing state
+      setNewMenuItem({
+        id: '',
+        name: '',
+        price: '',
+        available: true,
+        sequence: 0
+      });
+      setEditingId(null);
+      
+      alert('Menu item updated successfully!');
+    } catch (error) {
+      console.error('Error updating menu item:', error);
+      alert('Failed to update menu item. Please try again.');
+    }
   };
   
   // DELETE: Remove a menu item
-  const deleteMenuItem = (id) => {
+  const deleteMenuItem = async (id) => {
     if (window.confirm('Are you sure you want to delete this menu item?')) {
-      setMenuItems(menuItems.filter(item => item.id !== id));
-      alert('Menu item deleted successfully!');
+      try {
+        await deleteMenuItemFirebase(id);
+        alert('Menu item deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting menu item:', error);
+        alert('Failed to delete menu item. Please try again.');
+      }
     }
   };
   
@@ -432,10 +550,16 @@ const SettingsPage = () => {
   };
   
   // Toggle availability of a menu item
-  const toggleAvailability = (id) => {
-    setMenuItems(menuItems.map(item => 
-      item.id === id ? { ...item, available: !item.available } : item
-    ));
+  const toggleAvailability = async (id) => {
+    const item = menuItems.find(item => item.id === id);
+    if (item) {
+      try {
+        await toggleMenuItemAvailability(id, item.available);
+      } catch (error) {
+        console.error('Error toggling menu item availability:', error);
+        alert('Failed to update item availability. Please try again.');
+      }
+    }
   };
 
   const tabs = [
@@ -452,7 +576,7 @@ const SettingsPage = () => {
           <div className="tab-content">
             <div className="setting-item">
               <h3>{editingId ? 'Edit Menu Item' : 'Add New Menu Item'}</h3>
-              <form onSubmit={editingId ? updateMenuItem : addMenuItem} className="menu-form">
+              <form onSubmit={handleSubmit} className="menu-form">
                 <div className="form-group">
                   <label htmlFor="itemId">Item ID:</label>
                   <input

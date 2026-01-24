@@ -16,6 +16,7 @@ import {
 // Collection references
 const tablesCollection = collection(db, 'tables');
 const historyCollection = collection(db, 'history');
+const menuItemsCollection = collection(db, 'menuItems');
 
 // Get all tables data
 export const getAllTables = async () => {
@@ -183,5 +184,182 @@ export const clearAllHistory = async () => {
     await Promise.all(deletePromises);
   } catch (error) {
     console.error('Error clearing history:', error);
+  }
+};
+
+// MENU ITEMS FUNCTIONS
+
+// Get all menu items
+export const getAllMenuItems = async () => {
+  try {
+    const menuItemsSnapshot = await getDocs(
+      query(menuItemsCollection, orderBy('sequence', 'asc'))
+    );
+    const menuItems = [];
+    menuItemsSnapshot.forEach((doc) => {
+      menuItems.push({ id: doc.id, ...doc.data() });
+    });
+    return menuItems;
+  } catch (error) {
+    console.error('Error getting menu items:', error);
+    return [];
+  }
+};
+
+// Subscribe to real-time menu items updates
+export const subscribeToMenuItems = (callback) => {
+  if (typeof callback !== 'function') {
+    console.error('Callback must be a function');
+    return () => {};
+  }
+  
+  return onSnapshot(
+    query(menuItemsCollection, orderBy('sequence', 'asc')),
+    (snapshot) => {
+      const menuItems = [];
+      snapshot.forEach((doc) => {
+        menuItems.push({ id: doc.id, ...doc.data() });
+      });
+      callback(menuItems);
+    },
+    (error) => {
+      console.error('Error subscribing to menu items:', error);
+    }
+  );
+};
+
+// Add a new menu item
+export const addMenuItem = async (menuItemData) => {
+  try {
+    // Validate menuItemData is an object
+    if (typeof menuItemData !== 'object' || menuItemData === null) {
+      console.error('Invalid menuItemData:', menuItemData);
+      return null;
+    }
+    
+    const menuItemId = menuItemData.id || Date.now().toString();
+    await setDoc(doc(menuItemsCollection, menuItemId), menuItemData);
+    return menuItemId;
+  } catch (error) {
+    console.error('Error adding menu item:', error);
+    return null;
+  }
+};
+
+// Update a menu item
+export const updateMenuItem = async (menuItemId, menuItemData) => {
+  try {
+    // Validate menuItemId is a string
+    if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
+      console.error('Invalid menuItemId:', menuItemId);
+      return;
+    }
+    
+    // Convert to string if it's a number
+    const stringMenuItemId = String(menuItemId);
+    
+    // Validate menuItemData is an object
+    if (typeof menuItemData !== 'object' || menuItemData === null) {
+      console.error('Invalid menuItemData:', menuItemData);
+      return;
+    }
+    
+    await updateDoc(doc(menuItemsCollection, stringMenuItemId), menuItemData);
+  } catch (error) {
+    console.error('Error updating menu item:', error);
+  }
+};
+
+// Delete a menu item
+export const deleteMenuItem = async (menuItemId) => {
+  try {
+    // Validate menuItemId is a string
+    if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
+      console.error('Invalid menuItemId:', menuItemId);
+      return;
+    }
+    
+    // Convert to string if it's a number
+    const stringMenuItemId = String(menuItemId);
+    
+    await deleteDoc(doc(menuItemsCollection, stringMenuItemId));
+  } catch (error) {
+    console.error('Error deleting menu item:', error);
+  }
+};
+
+// Update menu item sequence/position
+export const updateMenuItemSequence = async (menuItemId, sequence) => {
+  try {
+    // Validate menuItemId is a string
+    if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
+      console.error('Invalid menuItemId:', menuItemId);
+      return;
+    }
+    
+    // Convert to string if it's a number
+    const stringMenuItemId = String(menuItemId);
+    
+    // Validate sequence is a number
+    if (typeof sequence !== 'number') {
+      console.error('Invalid sequence:', sequence);
+      return;
+    }
+    
+    await updateDoc(doc(menuItemsCollection, stringMenuItemId), { sequence });
+  } catch (error) {
+    console.error('Error updating menu item sequence:', error);
+  }
+};
+
+// Bulk update menu items (for reordering)
+export const bulkUpdateMenuItems = async (menuItems) => {
+  try {
+    // Validate menuItems is an array
+    if (!Array.isArray(menuItems)) {
+      console.error('Invalid menuItems array:', menuItems);
+      return;
+    }
+    
+    const batchUpdates = menuItems.map(async (item) => {
+      if (item.id) {
+        await updateDoc(doc(menuItemsCollection, String(item.id)), {
+          sequence: item.sequence,
+          name: item.name,
+          price: item.price,
+          available: item.available
+        });
+      }
+    });
+    
+    await Promise.all(batchUpdates);
+  } catch (error) {
+    console.error('Error bulk updating menu items:', error);
+  }
+};
+
+// Toggle menu item availability
+export const toggleMenuItemAvailability = async (menuItemId, currentAvailability) => {
+  try {
+    // Validate menuItemId is a string
+    if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
+      console.error('Invalid menuItemId:', menuItemId);
+      return;
+    }
+    
+    // Convert to string if it's a number
+    const stringMenuItemId = String(menuItemId);
+    
+    // Validate currentAvailability is a boolean
+    if (typeof currentAvailability !== 'boolean') {
+      console.error('Invalid currentAvailability:', currentAvailability);
+      return;
+    }
+    
+    await updateDoc(doc(menuItemsCollection, stringMenuItemId), { 
+      available: !currentAvailability 
+    });
+  } catch (error) {
+    console.error('Error toggling menu item availability:', error);
   }
 };

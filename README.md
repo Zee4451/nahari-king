@@ -1,13 +1,14 @@
 # Nalli Nihari POS System
 
-A modern Point of Sale (POS) system built with React and Vite for restaurant table management and order processing.
+A modern Point of Sale (POS) system built with React, Vite, and Firebase for restaurant table management and order processing with real-time synchronization across all devices.
 
 ## Features
 
 - **Table Management**: Create, manage, and organize tables with real-time updates
 - **Order Processing**: Intuitive interface for taking food and beverage orders
 - **Menu Management**: Comprehensive CRUD operations for menu items with drag-and-drop reordering
-- **Real-time Sync**: All changes sync automatically across devices
+- **Real-time Synchronization**: Menu items, availability, ordering, and edits sync instantly across all connected devices using Firebase
+- **Cross-Device Consistency**: All changes made on one device immediately appear on all other devices
 - **Order History**: Complete record of past orders with timestamps
 - **Flexible Pricing**: Dynamic menu pricing with quantity controls
 - **Responsive Design**: Works on tablets, desktops, and mobile devices
@@ -17,7 +18,8 @@ A modern Point of Sale (POS) system built with React and Vite for restaurant tab
 - React.js with Vite build system
 - React Router for navigation
 - CSS for styling
-- LocalStorage for data persistence
+- Firebase Firestore for real-time data synchronization
+- LocalStorage for offline fallback
 - react-dnd for drag-and-drop functionality
 
 ## Installation
@@ -36,8 +38,10 @@ A modern Point of Sale (POS) system built with React and Vite for restaurant tab
 
 - **Menu Item Management**: Add, edit, delete, and reorder menu items in the Settings page
 - **Drag-and-Drop Reordering**: Easily rearrange menu items by priority or category
+- **Real-time Menu Sync**: All menu changes (additions, edits, deletions, reordering, availability toggles) instantly sync across all devices
 - **Table Operations**: Create unlimited tables with multiple orders per table
 - **Order Management**: Add items to orders, adjust quantities, and manage multiple orders per table
+- **Cross-Device Updates**: Changes made on any device are immediately visible on all other connected devices
 
 ## Project Structure
 
