@@ -27,34 +27,66 @@ const menuItemsCollection = collection(db, 'menuItems');
 
 // Cache implementation for better performance
 const cache = new Map();
-const CACHE_TTL = 30000; // 30 seconds cache TTL
+const CACHE_TTL = 60000; // Increase to 60 seconds cache TTL
+
+// Cache statistics for debugging
+const cacheStats = {
+  hits: 0,
+  misses: 0,
+  sets: 0
+};
 
 // Cache helper functions
 const getCached = (key) => {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    cacheStats.hits++;
+    console.log(`Cache HIT for ${key}: ${cacheStats.hits} hits, ${cacheStats.misses} misses`);
     return cached.data;
   }
-  cache.delete(key);
+  cacheStats.misses++;
+  if (cached) {
+    console.log(`Cache EXPIRED for ${key}`);
+    cache.delete(key);
+  } else {
+    console.log(`Cache MISS for ${key}`);
+  }
   return null;
 };
 
 const setCached = (key, data) => {
+  cacheStats.sets++;
   cache.set(key, {
     data,
     timestamp: Date.now()
   });
+  console.log(`Cache SET for ${key}. Total entries: ${cache.size}`);
+};
+
+// Export cache statistics for debugging
+export const getCacheStats = () => ({ ...cacheStats });
+export const clearAllCache = () => {
+  cache.clear();
+  cacheStats.hits = 0;
+  cacheStats.misses = 0;
+  cacheStats.sets = 0;
+  console.log('All cache cleared');
 };
 
 const clearCache = (pattern) => {
   if (pattern) {
+    let clearedCount = 0;
     for (const key of cache.keys()) {
       if (key.includes(pattern)) {
         cache.delete(key);
+        clearedCount++;
       }
     }
+    console.log(`Cleared ${clearedCount} cache entries matching pattern: ${pattern}`);
   } else {
+    const size = cache.size;
     cache.clear();
+    console.log(`Cleared all ${size} cache entries`);
   }
 };
 
@@ -85,12 +117,16 @@ export const onConnectionStateChange = (callback) => {
 // Get all tables data with performance monitoring and caching
 export const getAllTables = async () => {
   try {
+    console.log('getAllTables called');
+    
     // Check cache first
     const cachedData = getCached('tables');
     if (cachedData && isOnline) {
       console.log('Returning cached tables data');
       return cachedData;
     }
+    
+    console.log('Cache miss - fetching from Firebase');
     
     return await monitorFirebaseOperation('getAllTables', async () => {
       const tablesSnapshot = await getDocs(tablesCollection);
@@ -111,6 +147,8 @@ export const getAllTables = async () => {
 
 // Subscribe to real-time tables updates
 export const subscribeToTables = (callback) => {
+  console.log('subscribeToTables called');
+  
   const unsubscribe = onSnapshot(tablesCollection, (snapshot) => {
     const tables = {};
     snapshot.forEach((doc) => {
@@ -126,6 +164,8 @@ export const subscribeToTables = (callback) => {
 // Get specific table data with performance monitoring
 export const getTable = async (tableId) => {
   try {
+    console.log(`getTable called for table ${tableId}`);
+    
     // Validate tableId is a string
     if (typeof tableId !== 'string' && typeof tableId !== 'number') {
       console.error('Invalid tableId:', tableId);
@@ -148,6 +188,8 @@ export const getTable = async (tableId) => {
 // Update or create table with performance monitoring, caching, and batch optimization
 export const updateTable = async (tableId, tableData) => {
   try {
+    console.log(`updateTable called for table ${tableId}`);
+    
     // Validate tableId is a string
     if (typeof tableId !== 'string' && typeof tableId !== 'number') {
       console.error('Invalid tableId:', tableId);
@@ -164,6 +206,7 @@ export const updateTable = async (tableId, tableData) => {
     }
     
     // Clear relevant cache entries
+    console.log('Clearing tables cache before update');
     clearCache('tables');
     
     // Monitor the operation
@@ -178,6 +221,8 @@ export const updateTable = async (tableId, tableData) => {
 // Delete table with performance monitoring
 export const deleteTable = async (tableId) => {
   try {
+    console.log(`deleteTable called for table ${tableId}`);
+    
     // Validate tableId is a string
     if (typeof tableId !== 'string' && typeof tableId !== 'number') {
       console.error('Invalid tableId:', tableId);
@@ -199,6 +244,8 @@ export const deleteTable = async (tableId) => {
 // Get all history with performance monitoring
 export const getAllHistory = async () => {
   try {
+    console.log('getAllHistory called');
+    
     return await monitorFirebaseOperation('getAllHistory', async () => {
       const historySnapshot = await getDocs(
         query(historyCollection, orderBy('timestamp', 'desc'))
@@ -217,6 +264,8 @@ export const getAllHistory = async () => {
 
 // Subscribe to real-time history updates
 export const subscribeToHistory = (callback) => {
+  console.log('subscribeToHistory called');
+  
   if (typeof callback !== 'function') {
     console.error('Callback must be a function');
     return () => {};
@@ -240,6 +289,8 @@ export const subscribeToHistory = (callback) => {
 // Add history entry with performance monitoring and optimized writes
 export const addHistory = async (historyData) => {
   try {
+    console.log('addHistory called');
+    
     // Validate historyData is an object
     if (typeof historyData !== 'object' || historyData === null) {
       console.error('Invalid historyData:', historyData);
@@ -263,6 +314,8 @@ export const addHistory = async (historyData) => {
 // Batch update tables for better performance
 export const batchUpdateTables = async (tablesUpdates) => {
   try {
+    console.log(`batchUpdateTables called with ${tablesUpdates.length} updates`);
+    
     // Validate input
     if (!Array.isArray(tablesUpdates) || tablesUpdates.length === 0) {
       console.error('Invalid tablesUpdates array:', tablesUpdates);
@@ -283,6 +336,7 @@ export const batchUpdateTables = async (tablesUpdates) => {
       await batch.commit();
       
       // Clear cache after batch update
+      console.log('Clearing tables cache after batch update');
       clearCache('tables');
       
       console.log(`Successfully updated ${tablesUpdates.length} tables in batch`);
@@ -297,6 +351,8 @@ export const batchUpdateTables = async (tablesUpdates) => {
 // Batch add history entries
 export const batchAddHistory = async (historyEntries) => {
   try {
+    console.log(`batchAddHistory called with ${historyEntries.length} entries`);
+    
     // Validate input
     if (!Array.isArray(historyEntries) || historyEntries.length === 0) {
       console.error('Invalid historyEntries array:', historyEntries);
@@ -330,6 +386,8 @@ export const batchAddHistory = async (historyEntries) => {
 // Optimized get specific tables (for partial loading)
 export const getTablesByIds = async (tableIds) => {
   try {
+    console.log(`getTablesByIds called with ${tableIds.length} table IDs`);
+    
     if (!Array.isArray(tableIds) || tableIds.length === 0) {
       return {};
     }
@@ -370,6 +428,8 @@ export const getTablesByIds = async (tableIds) => {
 };
 export const deleteHistory = async (historyId) => {
   try {
+    console.log(`deleteHistory called for history ${historyId}`);
+    
     // Validate historyId is a string
     if (typeof historyId !== 'string' && typeof historyId !== 'number') {
       console.error('Invalid historyId:', historyId);
@@ -391,6 +451,8 @@ export const deleteHistory = async (historyId) => {
 // Clear all history with performance monitoring
 export const clearAllHistory = async () => {
   try {
+    console.log('clearAllHistory called');
+    
     await monitorFirebaseOperation('clearAllHistory', async () => {
       const historySnapshot = await getDocs(historyCollection);
       const deletePromises = historySnapshot.docs.map(doc => deleteDoc(doc.ref));
@@ -406,12 +468,16 @@ export const clearAllHistory = async () => {
 // Get all menu items with performance monitoring and caching
 export const getAllMenuItems = async () => {
   try {
+    console.log('getAllMenuItems called');
+    
     // Check cache first
     const cachedData = getCached('menuItems');
     if (cachedData && isOnline) {
       console.log('Returning cached menu items data');
       return cachedData;
     }
+    
+    console.log('Cache miss - fetching from Firebase');
     
     return await monitorFirebaseOperation('getAllMenuItems', async () => {
       const menuItemsSnapshot = await getDocs(
@@ -434,6 +500,8 @@ export const getAllMenuItems = async () => {
 
 // Subscribe to real-time menu items updates
 export const subscribeToMenuItems = (callback) => {
+  console.log('subscribeToMenuItems called');
+  
   if (typeof callback !== 'function') {
     console.error('Callback must be a function');
     return () => {};
@@ -488,6 +556,8 @@ export const addMenuItem = async (menuItemData) => {
 // Update a menu item with version tracking
 export const updateMenuItem = async (menuItemId, menuItemData, currentVersion = 0) => {
   try {
+    console.log(`updateMenuItem called for item ${menuItemId}`);
+    
     // Validate menuItemId is a string
     if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
       console.error('Invalid menuItemId:', menuItemId);
@@ -519,6 +589,8 @@ export const updateMenuItem = async (menuItemId, menuItemData, currentVersion = 
 // Delete a menu item with performance monitoring
 export const deleteMenuItem = async (menuItemId) => {
   try {
+    console.log(`deleteMenuItem called for item ${menuItemId}`);
+    
     // Validate menuItemId is a string
     if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
       console.error('Invalid menuItemId:', menuItemId);
@@ -540,6 +612,8 @@ export const deleteMenuItem = async (menuItemId) => {
 // Update menu item sequence/position with version tracking
 export const updateMenuItemSequence = async (menuItemId, sequence, currentVersion = 0) => {
   try {
+    console.log(`updateMenuItemSequence called for item ${menuItemId}`);
+    
     // Validate menuItemId is a string
     if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
       console.error('Invalid menuItemId:', menuItemId);
@@ -571,6 +645,8 @@ export const updateMenuItemSequence = async (menuItemId, sequence, currentVersio
 // Bulk update menu items (for reordering) - Batched write for better performance
 export const bulkUpdateMenuItems = async (menuItems) => {
   try {
+    console.log(`bulkUpdateMenuItems called with ${menuItems.length} items`);
+    
     // Validate menuItems is an array
     if (!Array.isArray(menuItems)) {
       console.error('Invalid menuItems array:', menuItems);
@@ -607,6 +683,8 @@ export const bulkUpdateMenuItems = async (menuItems) => {
 // Toggle menu item availability with version tracking
 export const toggleMenuItemAvailability = async (menuItemId, currentAvailability, currentVersion = 0) => {
   try {
+    console.log(`toggleMenuItemAvailability called for item ${menuItemId}`);
+    
     // Validate menuItemId is a string
     if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
       console.error('Invalid menuItemId:', menuItemId);
@@ -635,6 +713,8 @@ export const toggleMenuItemAvailability = async (menuItemId, currentAvailability
 // Update menu item with version checking (optimistic concurrency control)
 export const updateMenuItemWithVersion = async (menuItemId, menuItemData, expectedVersion) => {
   try {
+    console.log(`updateMenuItemWithVersion called for item ${menuItemId}`);
+    
     // Validate inputs
     if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
       console.error('Invalid menuItemId:', menuItemId);
@@ -686,6 +766,8 @@ export const updateMenuItemWithVersion = async (menuItemId, menuItemData, expect
 
 // Retry mechanism with exponential backoff for conflict resolution
 export const retryWithBackoff = async (operation, maxRetries = 3, baseDelay = 100) => {
+  console.log('retryWithBackoff called');
+  
   let lastError;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
