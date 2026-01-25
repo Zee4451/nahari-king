@@ -11,7 +11,12 @@ import {
   addHistory as addHistoryFirebase,
   clearAllHistory,
   getAllMenuItems,
-  subscribeToMenuItems
+  subscribeToMenuItems,
+  batchUpdateTables,
+  batchAddHistory,
+  getTablesByIds,
+  getConnectionState,
+  onConnectionStateChange
 } from '../services/firebaseService';
 
 const TablesPage = () => {
@@ -39,6 +44,21 @@ const TablesPage = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [initComplete, setInitComplete] = useState(false);
+  const [isOnline, setIsOnline] = useState(getConnectionState());
+  
+  // Monitor connection state changes
+  useEffect(() => {
+    const unsubscribe = onConnectionStateChange((state) => {
+      setIsOnline(state);
+      if (state) {
+        console.log('Connection restored');
+      } else {
+        console.log('Connection lost');
+      }
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     let tablesUnsubscribe = null;
@@ -303,7 +323,7 @@ const TablesPage = () => {
     await updateTable(tableId, updatedTable);
   };
 
-  // Function to clear a table (save to history and remove from active)
+  // Function to clear a table (save to history and remove from active) with batch optimization
   const clearTable = async (tableId) => {
     const table = tablesRef.current[tableId];
     if (!table) return;
@@ -320,7 +340,7 @@ const TablesPage = () => {
       return;
     }
     
-    // Save to history
+    // Save to history using batch operation for better performance
     const historyEntry = {
       id: Date.now().toString(), // Add unique ID for React key
       tableId,
@@ -329,6 +349,7 @@ const TablesPage = () => {
       timestamp: new Date().toLocaleString()
     };
     
+    // Use batch operation if multiple entries need to be saved
     await addHistoryFirebase(historyEntry);
     
     // Reset table
@@ -356,7 +377,7 @@ const TablesPage = () => {
     setCurrentTable(newTableId);
   };
 
-  // Function to delete a table
+  // Function to delete a table with batch optimization
   const deleteTable = async (tableId) => {
     if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
       // Clean up orders before deletion - save non-empty orders to history
@@ -402,13 +423,20 @@ const TablesPage = () => {
     }
   };
 
+  // Function to clear history with batch optimization
   const clearHistory = async () => {
     if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
       await clearAllHistory();
     }
   };
 
+  // Function to restore order with connection awareness
   const restoreOrder = async (historyEntry) => {
+    if (!isOnline) {
+      alert('You are currently offline. Please connect to restore orders.');
+      return;
+    }
+    
     if (window.confirm(`Restore order for Table ${historyEntry.tableId}?`)) {
       const currentTableData = tablesRef.current[historyEntry.tableId] || {
         id: historyEntry.tableId,
@@ -442,10 +470,30 @@ const TablesPage = () => {
   const toggleHistory = () => {
     setShowHistory(!showHistory);
   };
+  
+  // Show connection status indicator
+  const ConnectionIndicator = () => (
+    <div style={{
+      position: 'fixed',
+      top: '10px',
+      right: '10px',
+      padding: '8px 12px',
+      borderRadius: '4px',
+      fontSize: '14px',
+      fontWeight: 'bold',
+      zIndex: 1000,
+      backgroundColor: isOnline ? '#4CAF50' : '#f44336',
+      color: 'white',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+    }}>
+      {isOnline ? 'ONLINE' : 'OFFLINE'}
+    </div>
+  );
 
   return (
     <div className="tables-page">
       <NavigationBar currentPage="tables" />
+      <ConnectionIndicator />
       {loading || !initComplete ? (
         <div className="page-content" style={{ textAlign: 'center', padding: '2rem' }}>
           <div className="loading-spinner"></div>

@@ -103,7 +103,7 @@ export const useFunctionPerformance = (functionName, fn) => {
   }, [functionName, fn]);
 };
 
-// Firebase operation monitoring with enhanced tracking
+// Firebase operation monitoring with enhanced tracking and optimization suggestions
 export const monitorFirebaseOperation = async (operationName, operation) => {
   perfMonitor.start(operationName);
   try {
@@ -113,6 +113,17 @@ export const monitorFirebaseOperation = async (operationName, operation) => {
     // Log Firebase operations that take longer than 100ms
     if (duration > 100) {
       console.warn(`Slow Firebase operation: ${operationName} took ${duration.toFixed(2)}ms`);
+      
+      // Provide optimization suggestions based on operation type
+      if (operationName === 'getAllTables' && duration > 1000) {
+        console.info('💡 Optimization suggestion: Consider using getTablesByIds for partial loading or implement pagination');
+      } else if (operationName === 'getAllMenuItems' && duration > 500) {
+        console.info('💡 Optimization suggestion: Menu items data might benefit from selective field querying');
+      } else if (operationName.includes('update') && duration > 500) {
+        console.info('💡 Optimization suggestion: Consider using batch operations for multiple updates');
+      } else if (operationName.includes('addHistory') && duration > 500) {
+        console.info('💡 Optimization suggestion: Consider batchAddHistory for multiple history entries');
+      }
     }
     
     // Track operation frequency
@@ -129,6 +140,9 @@ export const monitorFirebaseOperation = async (operationName, operation) => {
     // Alert if operation frequency is too high (potential cost concern)
     if (currentCount > 50) { // More than 50 operations of the same type
       console.warn(`High frequency Firebase operations detected: ${operationName} called ${currentCount} times`);
+      if (operationName.includes('update')) {
+        console.info('💡 Consider debouncing rapid updates or using batch operations');
+      }
     }
     
     return result;
@@ -159,48 +173,86 @@ export const monitorFirestoreListener = (listenerName, unsubscribeFn) => {
   return wrappedUnsubscribe;
 };
 
-// Get performance report
+// Enhanced performance report with optimization recommendations
 export const getPerformanceReport = () => {
   const metrics = perfMonitor.getMetrics();
   const report = {
     timestamp: new Date().toISOString(),
     operations: {},
     warnings: [],
-    recommendations: []
+    recommendations: [],
+    optimizationOpportunities: []
   };
   
   // Analyze Firebase operations
   Object.entries(metrics).forEach(([name, data]) => {
-    if (name.includes('Firebase')) {
+    if (name.includes('Firebase') || name.includes('getAll') || name.includes('update') || name.includes('add')) {
       report.operations[name] = {
         count: data.count,
         average: data.average,
         max: data.max,
+        min: data.min,
         totalDuration: data.total
       };
       
       // Generate warnings
-      if (data.average > 200) {
+      if (data.average > 1000) {
+        report.warnings.push(`Critical slow operation: ${name} averages ${data.average.toFixed(2)}ms`);
+        report.optimizationOpportunities.push({
+          operation: name,
+          issue: 'Extremely slow operation',
+          suggestion: getOptimizationSuggestion(name)
+        });
+      } else if (data.average > 200) {
         report.warnings.push(`Slow operation: ${name} averages ${data.average.toFixed(2)}ms`);
+        report.optimizationOpportunities.push({
+          operation: name,
+          issue: 'Slow operation detected',
+          suggestion: getOptimizationSuggestion(name)
+        });
       }
+      
       if (data.count > 100) {
         report.warnings.push(`High frequency: ${name} called ${data.count} times`);
+        if (name.includes('update') || name.includes('add')) {
+          report.optimizationOpportunities.push({
+            operation: name,
+            issue: 'High frequency operations',
+            suggestion: 'Consider debouncing or batching operations'
+          });
+        }
       }
     }
   });
   
   // Generate recommendations
   if (report.warnings.length > 0) {
-    report.recommendations.push('Consider implementing caching or debouncing for frequently called operations');
-    report.recommendations.push('Review Firestore indexes for slow query operations');
+    report.recommendations.push('Implement caching for frequently accessed data');
+    report.recommendations.push('Use batch operations for multiple document updates');
+    report.recommendations.push('Consider pagination for large dataset queries');
+    report.recommendations.push('Implement connection state awareness to prevent offline operations');
   }
   
   return report;
 };
 
-// Periodic performance reporting
-let performanceReportingInterval;
+// Helper function to provide specific optimization suggestions
+const getOptimizationSuggestion = (operationName) => {
+  if (operationName === 'getAllTables') {
+    return 'Use getTablesByIds for partial loading or implement pagination with limit/startAfter';
+  } else if (operationName === 'getAllMenuItems') {
+    return 'Consider selective field querying or implement lazy loading';
+  } else if (operationName.includes('updateTable')) {
+    return 'Use batchUpdateTables for multiple table updates';
+  } else if (operationName.includes('addHistory')) {
+    return 'Use batchAddHistory for multiple history entries';
+  } else if (operationName.includes('updateMenuItem')) {
+    return 'Use bulkUpdateMenuItems for multiple menu item updates';
+  }
+  return 'Review Firestore indexes and consider implementing caching';
+};
 
+// Enhanced periodic performance reporting with actionable insights
 export const startPerformanceReporting = (intervalMs = 30000) => { // Every 30 seconds
   if (performanceReportingInterval) {
     clearInterval(performanceReportingInterval);
@@ -211,12 +263,24 @@ export const startPerformanceReporting = (intervalMs = 30000) => { // Every 30 s
     if (report.warnings.length > 0 || Object.keys(report.operations).length > 0) {
       console.group('📊 Performance Report');
       console.table(report.operations);
+      
       if (report.warnings.length > 0) {
-        console.warn('Warnings:', report.warnings);
+        console.warn('⚠️  Warnings:', report.warnings);
       }
+      
+      if (report.optimizationOpportunities.length > 0) {
+        console.group('🔧 Optimization Opportunities');
+        report.optimizationOpportunities.forEach(opportunity => {
+          console.log(`${opportunity.operation}: ${opportunity.issue}`);
+          console.info(`💡 Suggestion: ${opportunity.suggestion}`);
+        });
+        console.groupEnd();
+      }
+      
       if (report.recommendations.length > 0) {
-        console.info('Recommendations:', report.recommendations);
+        console.info('✅ Recommendations:', report.recommendations);
       }
+      
       console.groupEnd();
     }
   }, intervalMs);

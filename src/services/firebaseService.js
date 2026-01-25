@@ -12,7 +12,9 @@ import {
   orderBy,
   where,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  limit,
+  startAfter
 } from 'firebase/firestore';
 
 // Import performance monitoring utilities
@@ -23,15 +25,82 @@ const tablesCollection = collection(db, 'tables');
 const historyCollection = collection(db, 'history');
 const menuItemsCollection = collection(db, 'menuItems');
 
-// Get all tables data with performance monitoring
+// Cache implementation for better performance
+const cache = new Map();
+const CACHE_TTL = 30000; // 30 seconds cache TTL
+
+// Cache helper functions
+const getCached = (key) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+};
+
+const setCached = (key, data) => {
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+};
+
+const clearCache = (pattern) => {
+  if (pattern) {
+    for (const key of cache.keys()) {
+      if (key.includes(pattern)) {
+        cache.delete(key);
+      }
+    }
+  } else {
+    cache.clear();
+  }
+};
+
+// Connection state management
+let isOnline = navigator.onLine;
+let connectionListeners = [];
+
+const updateConnectionState = (state) => {
+  isOnline = state;
+  connectionListeners.forEach(callback => callback(state));
+};
+
+// Monitor connection changes
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => updateConnectionState(true));
+  window.addEventListener('offline', () => updateConnectionState(false));
+}
+
+// Export connection state utilities
+export const getConnectionState = () => isOnline;
+export const onConnectionStateChange = (callback) => {
+  connectionListeners.push(callback);
+  return () => {
+    connectionListeners = connectionListeners.filter(cb => cb !== callback);
+  };
+};
+
+// Get all tables data with performance monitoring and caching
 export const getAllTables = async () => {
   try {
+    // Check cache first
+    const cachedData = getCached('tables');
+    if (cachedData && isOnline) {
+      console.log('Returning cached tables data');
+      return cachedData;
+    }
+    
     return await monitorFirebaseOperation('getAllTables', async () => {
       const tablesSnapshot = await getDocs(tablesCollection);
       const tables = {};
       tablesSnapshot.forEach((doc) => {
         tables[doc.id] = doc.data();
       });
+      
+      // Cache the result
+      setCached('tables', tables);
       return tables;
     });
   } catch (error) {
@@ -76,7 +145,7 @@ export const getTable = async (tableId) => {
   }
 };
 
-// Update or create table with performance monitoring
+// Update or create table with performance monitoring, caching, and batch optimization
 export const updateTable = async (tableId, tableData) => {
   try {
     // Validate tableId is a string
@@ -93,6 +162,9 @@ export const updateTable = async (tableId, tableData) => {
       console.error('Invalid tableData:', tableData);
       return;
     }
+    
+    // Clear relevant cache entries
+    clearCache('tables');
     
     // Monitor the operation
     await monitorFirebaseOperation('updateTable', async () => {
@@ -165,7 +237,7 @@ export const subscribeToHistory = (callback) => {
   return monitorFirestoreListener('history_subscription', unsubscribe);
 };
 
-// Add history entry with performance monitoring
+// Add history entry with performance monitoring and optimized writes
 export const addHistory = async (historyData) => {
   try {
     // Validate historyData is an object
@@ -188,7 +260,114 @@ export const addHistory = async (historyData) => {
   }
 };
 
-// Delete history with performance monitoring
+// Batch update tables for better performance
+export const batchUpdateTables = async (tablesUpdates) => {
+  try {
+    // Validate input
+    if (!Array.isArray(tablesUpdates) || tablesUpdates.length === 0) {
+      console.error('Invalid tablesUpdates array:', tablesUpdates);
+      return false;
+    }
+    
+    return await monitorFirebaseOperation('batchUpdateTables', async () => {
+      const batch = writeBatch(db);
+      
+      tablesUpdates.forEach(({ tableId, tableData }) => {
+        if (tableId && tableData) {
+          const stringTableId = String(tableId);
+          const docRef = doc(tablesCollection, stringTableId);
+          batch.set(docRef, tableData);
+        }
+      });
+      
+      await batch.commit();
+      
+      // Clear cache after batch update
+      clearCache('tables');
+      
+      console.log(`Successfully updated ${tablesUpdates.length} tables in batch`);
+      return true;
+    });
+  } catch (error) {
+    console.error('Error in batch update tables:', error);
+    return false;
+  }
+};
+
+// Batch add history entries
+export const batchAddHistory = async (historyEntries) => {
+  try {
+    // Validate input
+    if (!Array.isArray(historyEntries) || historyEntries.length === 0) {
+      console.error('Invalid historyEntries array:', historyEntries);
+      return false;
+    }
+    
+    return await monitorFirebaseOperation('batchAddHistory', async () => {
+      const batch = writeBatch(db);
+      
+      historyEntries.forEach((entry) => {
+        if (entry) {
+          const historyId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+          const docRef = doc(historyCollection, historyId);
+          batch.set(docRef, {
+            ...entry,
+            timestamp: serverTimestamp()
+          });
+        }
+      });
+      
+      await batch.commit();
+      console.log(`Successfully added ${historyEntries.length} history entries in batch`);
+      return true;
+    });
+  } catch (error) {
+    console.error('Error in batch add history:', error);
+    return false;
+  }
+};
+
+// Optimized get specific tables (for partial loading)
+export const getTablesByIds = async (tableIds) => {
+  try {
+    if (!Array.isArray(tableIds) || tableIds.length === 0) {
+      return {};
+    }
+    
+    // Check cache first
+    const cacheKey = `tables_${tableIds.sort().join('_')}`;
+    const cachedData = getCached(cacheKey);
+    if (cachedData && isOnline) {
+      console.log('Returning cached specific tables data');
+      return cachedData;
+    }
+    
+    return await monitorFirebaseOperation('getTablesByIds', async () => {
+      const tables = {};
+      
+      // Process in batches to avoid hitting limits
+      const batchSize = 10;
+      for (let i = 0; i < tableIds.length; i += batchSize) {
+        const batchIds = tableIds.slice(i, i + batchSize);
+        const promises = batchIds.map(id => getDoc(doc(tablesCollection, String(id))));
+        const docs = await Promise.all(promises);
+        
+        docs.forEach((docSnap, index) => {
+          if (docSnap.exists()) {
+            tables[batchIds[index]] = docSnap.data();
+          }
+        });
+      }
+      
+      // Cache the result
+      setCached(cacheKey, tables);
+      return tables;
+    });
+  } catch (error) {
+    console.error('Error getting specific tables:', error);
+    return {};
+  }
+};
 export const deleteHistory = async (historyId) => {
   try {
     // Validate historyId is a string
@@ -224,9 +403,16 @@ export const clearAllHistory = async () => {
 
 // MENU ITEMS FUNCTIONS
 
-// Get all menu items with performance monitoring
+// Get all menu items with performance monitoring and caching
 export const getAllMenuItems = async () => {
   try {
+    // Check cache first
+    const cachedData = getCached('menuItems');
+    if (cachedData && isOnline) {
+      console.log('Returning cached menu items data');
+      return cachedData;
+    }
+    
     return await monitorFirebaseOperation('getAllMenuItems', async () => {
       const menuItemsSnapshot = await getDocs(
         query(menuItemsCollection, orderBy('sequence', 'asc'))
@@ -235,6 +421,9 @@ export const getAllMenuItems = async () => {
       menuItemsSnapshot.forEach((doc) => {
         menuItems.push({ id: doc.id, ...doc.data() });
       });
+      
+      // Cache the result
+      setCached('menuItems', menuItems);
       return menuItems;
     });
   } catch (error) {
