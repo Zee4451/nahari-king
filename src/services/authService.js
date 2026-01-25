@@ -318,6 +318,25 @@ class AuthService {
         createdAt: new Date().toISOString()
       });
       
+      // If the newly created user is an admin, make sure current user still has proper permissions
+      // This is important to ensure the current user doesn't lose admin privileges
+      if (this.currentUser && this.currentUser.uid) {
+        try {
+          // Refresh current user's permissions to ensure they haven't changed
+          const currentUserDoc = await getDoc(doc(db, 'users', this.currentUser.uid));
+          if (currentUserDoc.exists()) {
+            const userData = currentUserDoc.data();
+            this.currentUser = {
+              ...this.currentUser,
+              role: userData.role || this.currentUser.role,
+              permissions: userData.permissions || this.currentUser.permissions
+            };
+          }
+        } catch (refreshError) {
+          console.warn('Could not refresh current user permissions:', refreshError);
+        }
+      }
+      
       return {
         success: true,
         user: userCredential.user,

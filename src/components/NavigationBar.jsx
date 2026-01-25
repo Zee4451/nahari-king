@@ -1,7 +1,18 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { logout } from '../services/authService';
 
 const NavigationBar = ({ currentPage }) => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Redirect to login page after logout
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
     <nav className="navigation-bar">
       <div className="nav-container">
@@ -17,6 +28,13 @@ const NavigationBar = ({ currentPage }) => {
         >
           Settings
         </Link>
+        <button 
+          className="logout-button"
+          onClick={handleLogout}
+          type="button"
+        >
+          Logout
+        </button>
       </div>
     </nav>
   );

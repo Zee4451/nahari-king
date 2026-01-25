@@ -51,6 +51,7 @@ body {
   gap: 2rem;
   max-width: 800px;
   margin: 0 auto;
+  align-items: center; /* Center items vertically */
 }
 
 .nav-link {
@@ -71,6 +72,29 @@ body {
   background-color: #007bff; /* Blue background for active */
   color: #ffffff; /* White text */
   font-weight: bold;
+}
+
+/* Logout Button */
+.logout-button {
+  background-color: #dc3545; /* Red background */
+  color: white;
+  border: 1px solid #bd2130; /* Slightly darker border */
+  border-radius: 8px; /* Medium rounded corners */
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-left: auto; /* Push to the right */
+}
+
+.logout-button:hover {
+  background-color: #c82333; /* Darker red on hover */
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.logout-button:active {
+  transform: translateY(0);
 }
 
 /* Page Content */

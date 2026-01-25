@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { isAuthenticated, listenToAuthState, canAccessSettings } from '../services/authService';
+import { isAuthenticated, listenToAuthState, canAccessSettings, hasPermission } from '../services/authService';
 import LoginPage from './LoginPage';
 
 const ProtectedRoute = ({ children, requiredPermission = null }) => {
@@ -25,7 +25,12 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
         let authorized = true;
         
         if (requiredPermission) {
-          authorized = canAccessSettings(); // For now, Settings requires settings_access permission
+          if (requiredPermission === 'settings_access') {
+            authorized = canAccessSettings();
+          } else {
+            // For other permissions, check them individually
+            authorized = hasPermission(requiredPermission);
+          }
         }
         
         if (!authorized) {
