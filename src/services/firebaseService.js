@@ -167,9 +167,9 @@ export const getAllTables = async () => {
         const data = doc.data();
         tables[doc.id] = {
           id: data.id,
-          orders: data.orders || [],
-          total: data.total || 0,
-          ...data // Include any other fields
+          orders: Array.isArray(data.orders) ? data.orders : [],
+          total: typeof data.total === 'number' ? data.total : 0,
+          timestamp: data.timestamp
         };
       });
       
@@ -228,6 +228,12 @@ export const updateTable = async (tableId, tableData) => {
   try {
     console.log(`updateTable called for table ${tableId}`);
     
+    // Check connection state before proceeding
+    if (!isOnline) {
+      console.warn('Device is offline, cannot update table');
+      return;
+    }
+    
     // Validate tableId is a string
     if (typeof tableId !== 'string' && typeof tableId !== 'number') {
       console.error('Invalid tableId:', tableId);
@@ -243,19 +249,44 @@ export const updateTable = async (tableId, tableData) => {
       return;
     }
     
-    // Clear relevant cache entries
-    console.log('Clearing tables cache before update');
-    clearCache('tables');
+    // Debounce rapid updates to prevent excessive Firebase calls
+    if (!updateTable._pendingUpdates) {
+      updateTable._pendingUpdates = {};
+    }
     
-    // Monitor the operation
-    await monitorFirebaseOperation('updateTable', async () => {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Firebase timeout')), 3000)
-      );
-      
-      const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData);
-      await Promise.race([firebasePromise, timeoutPromise]);
+    // Clear any pending timeout for this table
+    if (updateTable._pendingUpdates[stringTableId]) {
+      clearTimeout(updateTable._pendingUpdates[stringTableId]);
+    }
+    
+    // Store the latest data to apply when timeout completes
+    updateTable._pendingUpdates[stringTableId] = tableData;
+    
+    // Create a small delay to debounce rapid updates
+    await new Promise(resolve => {
+      updateTable._pendingUpdates[stringTableId] = setTimeout(async () => {
+        try {
+          // Clear relevant cache entries
+          console.log('Clearing tables cache before update');
+          clearCache('tables');
+          
+          // Monitor the operation
+          await monitorFirebaseOperation('updateTable', async () => {
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Firebase timeout')), 3000)
+            );
+            
+            const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData);
+            await Promise.race([firebasePromise, timeoutPromise]);
+          });
+        } catch (error) {
+          console.error('Error updating table:', error);
+        } finally {
+          // Clean up the pending update reference
+          delete updateTable._pendingUpdates[stringTableId];
+        }
+      }, 50); // 50ms debounce period
     });
   } catch (error) {
     console.error('Error updating table:', error);
@@ -334,6 +365,12 @@ export const subscribeToHistory = (callback) => {
 export const addHistory = async (historyData) => {
   try {
     console.log('addHistory called');
+    
+    // Check connection state before proceeding
+    if (!isOnline) {
+      console.warn('Device is offline, cannot add history');
+      return;
+    }
     
     // Validate historyData is an object
     if (typeof historyData !== 'object' || historyData === null) {
@@ -544,12 +581,11 @@ export const getAllMenuItems = async () => {
         const data = doc.data();
         menuItems.push({ 
           id: doc.id, 
-          name: data.name,
-          price: data.price,
-          available: data.available,
-          sequence: data.sequence,
-          category: data.category,
-          ...data // Include any other fields
+          name: data.name || '',
+          price: typeof data.price === 'number' ? data.price : 0,
+          available: data.available !== undefined ? data.available : true,
+          sequence: typeof data.sequence === 'number' ? data.sequence : 0,
+          category: data.category || ''
         });
       });
       
