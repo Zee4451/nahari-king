@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection - only authenticated users can read their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && 
+        request.resource.data.email is string &&
+        request.resource.data.role is string &&
+        request.resource.data.permissions is list;
+    }
+    
+    // Tables collection - authenticated users with proper permissions
+    match /tables/{document} {
+      allow read, write: if request.auth != null && 
+        ('settings_access' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions ||
+         'menu_management' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions);
+    }
+    
+    // Menu items collection - authenticated users with menu management permissions
+    match /menuItems/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        'menu_management' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions;
+    }
+    
+    // History collection - authenticated users with proper permissions
+    match /history/{document} {
+      allow read, write: if request.auth != null && 
+        ('settings_access' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions ||
+         'order_history' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions);
+    }
+    
+    // Settings collection - only admin users
+    match /settings/{document} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Default deny for any other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
