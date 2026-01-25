@@ -111,10 +111,8 @@ class AuthService {
 
   setupAuthListener() {
     onAuthStateChanged(auth, async (user) => {
-      this.currentUser = user;
-      
       if (user) {
-        // User is signed in
+        // User is signed in - fetch user data from Firestore first
         try {
           // Fetch user role and permissions from Firestore
           const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -126,7 +124,7 @@ class AuthService {
               permissions: userData.permissions || []
             };
           } else {
-            // Create default user document
+            // Create default user document for existing Firebase Auth users
             await setDoc(doc(db, 'users', user.uid), {
               email: user.email,
               role: 'admin', // Default admin for first user
@@ -142,10 +140,15 @@ class AuthService {
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
+          // Fallback to basic user without permissions
+          this.currentUser = user;
         }
+      } else {
+        // User is signed out
+        this.currentUser = null;
       }
       
-      // Notify all listeners
+      // Notify all listeners after user data is fully loaded
       this.authListeners.forEach(callback => callback(this.currentUser));
     });
   }
