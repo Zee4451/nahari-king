@@ -65,8 +65,12 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      await register(email, password, 'admin');
-      setSuccess('Account created successfully! You can now sign in.');
+      const result = await register(email, password, 'admin');
+      if (result.isFirstUser) {
+        setSuccess('First admin account created successfully! You now have full system access.');
+      } else {
+        setSuccess('Account created successfully! You can now sign in.');
+      }
       setRegistrationComplete(true);
       setShowRegister(false);
       // Clear form fields
@@ -289,7 +293,8 @@ const LoginPage = () => {
               >
                 Back to Sign In
               </button>
-              <p>Create your admin account to access the system</p>
+              <p><strong>First user:</strong> Automatically granted admin privileges<br/>
+                 <strong>Additional users:</strong> Require admin invitation</p>
             </div>
           </form>
         )}

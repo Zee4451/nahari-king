@@ -256,8 +256,19 @@ class AuthService {
   // Register new user (admin only)
   async register(email, password, role = 'user') {
     try {
-      // Verify admin permissions
-      if (!this.isAdmin()) {
+      // Check if this is the first user (no users exist)
+      let isFirstUser = false;
+      try {
+        const usersCollection = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersCollection);
+        isFirstUser = usersSnapshot.empty;
+      } catch (error) {
+        console.warn('Could not check if first user, assuming not first:', error);
+        isFirstUser = false;
+      }
+
+      // Verify admin permissions (unless this is the first user)
+      if (!isFirstUser && !this.isAdmin()) {
         throw new Error('Insufficient permissions to create users');
       }
       
@@ -292,18 +303,23 @@ class AuthService {
         sanitizedPassword
       );
       
+      // Determine role - first user gets admin, others get specified role
+      const userRole = isFirstUser ? 'admin' : role;
+      
       // Create user document in Firestore
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email: sanitizedEmail,
-        role: role,
-        permissions: this.getDefaultPermissions(role),
-        createdBy: this.currentUser?.uid,
+        role: userRole,
+        permissions: this.getDefaultPermissions(userRole),
+        createdBy: this.currentUser?.uid || userCredential.user.uid, // Self-created if first user
         createdAt: new Date().toISOString()
       });
       
       return {
         success: true,
-        user: userCredential.user
+        user: userCredential.user,
+        isFirstUser: isFirstUser,
+        assignedRole: userRole
       };
     } catch (error) {
       let errorMessage = 'Registration failed';
