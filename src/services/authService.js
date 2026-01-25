@@ -422,18 +422,16 @@ class AuthService {
 const authService = new AuthService();
 export default authService;
 
-// Export individual functions for convenience
-export const {
-  login,
-  logout,
-  register,
-  changePassword,
-  hasPermission,
-  isAdmin,
-  isAuthenticated,
-  getCurrentUser,
-  canAccessSettings
-} = authService;
+// Export individual functions with proper context binding
+export const login = authService.login.bind(authService);
+export const logout = authService.logout.bind(authService);
+export const register = authService.register.bind(authService);
+export const changePassword = authService.changePassword.bind(authService);
+export const hasPermission = authService.hasPermission.bind(authService);
+export const isAdmin = authService.isAdmin.bind(authService);
+export const isAuthenticated = authService.isAuthenticated.bind(authService);
+export const getCurrentUser = authService.getCurrentUser.bind(authService);
+export const canAccessSettings = authService.canAccessSettings.bind(authService);
 
 // Export the onAuthStateChanged method separately to avoid naming conflict
 export const listenToAuthState = authService.onAuthStateChanged.bind(authService);
