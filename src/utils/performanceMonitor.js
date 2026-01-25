@@ -69,6 +69,9 @@ class PerformanceMonitor {
 // Global performance monitor instance
 const perfMonitor = new PerformanceMonitor();
 
+// Performance reporting interval variable
+let performanceReportingInterval;
+
 // Hook for component render performance monitoring
 export const useRenderPerformance = (componentName) => {
   const mountTime = React.useRef(performance.now());
