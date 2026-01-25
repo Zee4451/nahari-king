@@ -357,11 +357,6 @@ const TablesPage = () => {
   useEffect(() => {
     const unsubscribe = onConnectionStateChange((state) => {
       setIsOnline(state);
-      if (state) {
-        console.log('Connection restored');
-      } else {
-        console.log('Connection lost');
-      }
     });
 
     return () => unsubscribe();
@@ -402,25 +397,19 @@ const TablesPage = () => {
 
         // Load menu items from Firebase
         try {
-          console.log('Loading menu items...');
           // Load menu items from Firebase
           const firebaseMenuItems = await getAllMenuItems();
-          console.log('Firebase menu items:', firebaseMenuItems);
 
           if (firebaseMenuItems.length > 0) {
             // Use Firebase data if it exists
-            console.log('Using Firebase menu items');
             setMenuItems(firebaseMenuItems.filter(item => item.available));
           } else {
-            console.log('No Firebase menu items found, keeping default items');
             // If no Firebase data exists, try to migrate from localStorage if available
             const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
-            console.log('LocalStorage menu items:', savedMenuItems);
-
+            
             if (savedMenuItems) {
               const parsedItems = JSON.parse(savedMenuItems);
               const availableItems = parsedItems.filter(item => item.available);
-              console.log('Using localStorage menu items');
               setMenuItems(availableItems);
             }
             // If no localStorage either, keep the default items that were set in useState
@@ -436,7 +425,6 @@ const TablesPage = () => {
 
         // Subscribe to real-time menu items updates
         menuItemsUnsubscribe = subscribeToMenuItems((updatedMenuItems) => {
-          console.log('Menu items updated:', updatedMenuItems);
           if (updatedMenuItems.length > 0) {
             setMenuItems(updatedMenuItems.filter(item => item.available));
           }

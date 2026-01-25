@@ -163,7 +163,6 @@ export const monitorFirestoreListener = (listenerName, unsubscribeFn) => {
   // Wrap the unsubscribe function to track listener duration
   const wrappedUnsubscribe = () => {
     const duration = Date.now() - startTime;
-    console.log(`Firestore listener '${listenerName}' active for ${Math.floor(duration/1000)} seconds`);
     
     // Check for long-running listeners that might cause performance issues
     if (duration > 300000) { // 5 minutes
