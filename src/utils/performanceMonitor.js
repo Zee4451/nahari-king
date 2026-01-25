@@ -103,7 +103,7 @@ export const useFunctionPerformance = (functionName, fn) => {
   }, [functionName, fn]);
 };
 
-// Firebase operation monitoring
+// Firebase operation monitoring with enhanced tracking
 export const monitorFirebaseOperation = async (operationName, operation) => {
   perfMonitor.start(operationName);
   try {
@@ -115,6 +115,22 @@ export const monitorFirebaseOperation = async (operationName, operation) => {
       console.warn(`Slow Firebase operation: ${operationName} took ${duration.toFixed(2)}ms`);
     }
     
+    // Track operation frequency
+    const frequencyKey = `${operationName}_frequency`;
+    const currentCount = perfMonitor.metrics.get(frequencyKey)?.count || 0;
+    perfMonitor.metrics.set(frequencyKey, {
+      count: currentCount + 1,
+      total: 0,
+      max: 0,
+      min: 0,
+      last: Date.now()
+    });
+    
+    // Alert if operation frequency is too high (potential cost concern)
+    if (currentCount > 50) { // More than 50 operations of the same type
+      console.warn(`High frequency Firebase operations detected: ${operationName} called ${currentCount} times`);
+    }
+    
     return result;
   } catch (error) {
     perfMonitor.end(operationName);
@@ -123,6 +139,101 @@ export const monitorFirebaseOperation = async (operationName, operation) => {
   }
 };
 
+// Monitor Firestore listener performance
+export const monitorFirestoreListener = (listenerName, unsubscribeFn) => {
+  const startTime = Date.now();
+  
+  // Wrap the unsubscribe function to track listener duration
+  const wrappedUnsubscribe = () => {
+    const duration = Date.now() - startTime;
+    console.log(`Firestore listener '${listenerName}' active for ${Math.floor(duration/1000)} seconds`);
+    
+    // Check for long-running listeners that might cause performance issues
+    if (duration > 300000) { // 5 minutes
+      console.warn(`Long-running Firestore listener detected: ${listenerName}`);
+    }
+    
+    unsubscribeFn();
+  };
+  
+  return wrappedUnsubscribe;
+};
+
+// Get performance report
+export const getPerformanceReport = () => {
+  const metrics = perfMonitor.getMetrics();
+  const report = {
+    timestamp: new Date().toISOString(),
+    operations: {},
+    warnings: [],
+    recommendations: []
+  };
+  
+  // Analyze Firebase operations
+  Object.entries(metrics).forEach(([name, data]) => {
+    if (name.includes('Firebase')) {
+      report.operations[name] = {
+        count: data.count,
+        average: data.average,
+        max: data.max,
+        totalDuration: data.total
+      };
+      
+      // Generate warnings
+      if (data.average > 200) {
+        report.warnings.push(`Slow operation: ${name} averages ${data.average.toFixed(2)}ms`);
+      }
+      if (data.count > 100) {
+        report.warnings.push(`High frequency: ${name} called ${data.count} times`);
+      }
+    }
+  });
+  
+  // Generate recommendations
+  if (report.warnings.length > 0) {
+    report.recommendations.push('Consider implementing caching or debouncing for frequently called operations');
+    report.recommendations.push('Review Firestore indexes for slow query operations');
+  }
+  
+  return report;
+};
+
+// Periodic performance reporting
+let performanceReportingInterval;
+
+export const startPerformanceReporting = (intervalMs = 30000) => { // Every 30 seconds
+  if (performanceReportingInterval) {
+    clearInterval(performanceReportingInterval);
+  }
+  
+  performanceReportingInterval = setInterval(() => {
+    const report = getPerformanceReport();
+    if (report.warnings.length > 0 || Object.keys(report.operations).length > 0) {
+      console.group('📊 Performance Report');
+      console.table(report.operations);
+      if (report.warnings.length > 0) {
+        console.warn('Warnings:', report.warnings);
+      }
+      if (report.recommendations.length > 0) {
+        console.info('Recommendations:', report.recommendations);
+      }
+      console.groupEnd();
+    }
+  }, intervalMs);
+};
+
+export const stopPerformanceReporting = () => {
+  if (performanceReportingInterval) {
+    clearInterval(performanceReportingInterval);
+    performanceReportingInterval = null;
+  }
+};
+
 // Export the monitor for direct access
 export { perfMonitor };
 export default perfMonitor;
+
+// Start performance reporting on module load
+if (typeof window !== 'undefined') {
+  startPerformanceReporting();
+}

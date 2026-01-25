@@ -13,8 +13,11 @@ import {
   updateMenuItem as updateMenuItemFirebase,
   deleteMenuItem as deleteMenuItemFirebase,
   bulkUpdateMenuItems,
-  toggleMenuItemAvailability
+  toggleMenuItemAvailability,
+  updateMenuItemWithVersion,
+  retryWithBackoff
 } from '../services/firebaseService';
+import { useRenderPerformance, useFunctionPerformance, monitorFirebaseOperation } from '../utils/performanceMonitor';
 
 const SettingsPage = () => {
   // Define item types for drag and drop
@@ -68,26 +71,13 @@ const SettingsPage = () => {
 
   // Function to move an item from one position to another
   const moveItem = async (fromIndex, toIndex) => {
-    const sortedMenuItems = menuItems.slice().sort((a, b) => a.sequence - b.sequence);
-    const newMenuItems = [...sortedMenuItems];
-    const [movedItem] = newMenuItems.splice(fromIndex, 1);
-    newMenuItems.splice(toIndex, 0, movedItem);
-    
-    // Update sequence numbers based on new positions
-    const updatedMenuItems = newMenuItems.map((item, index) => ({
-      ...item,
-      sequence: index + 1
-    }));
-    
-    try {
-      // Update all items in Firebase sequentially
-      await bulkUpdateMenuItems(updatedMenuItems);
-      console.log('Menu item sequence updated successfully');
-    } catch (error) {
-      console.error('Error updating menu item sequence:', error);
-      alert('Failed to update item sequence. Please try again.');
-      throw error; // Re-throw to allow caller to handle
+    if (!isOnline) {
+      alert('You are currently offline. Changes will be synced when you reconnect.');
+      return;
     }
+    
+    // Use debounced version for better performance
+    debouncedMoveItem(fromIndex, toIndex);
   };
 
   // Function to move item up in sequence
@@ -150,6 +140,53 @@ const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('menu');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Connection state awareness
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncPending, setSyncPending] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(Date.now());
+  
+  // Debounce timer reference
+  const debounceTimerRef = React.useRef(null);
+  
+  // Debounced moveItem function
+  const debouncedMoveItem = useCallback((fromIndex, toIndex) => {
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Set new timer
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        setSyncPending(true);
+        
+        const sortedMenuItems = menuItems.slice().sort((a, b) => a.sequence - b.sequence);
+        const newMenuItems = [...sortedMenuItems];
+        const [movedItem] = newMenuItems.splice(fromIndex, 1);
+        newMenuItems.splice(toIndex, 0, movedItem);
+        
+        // Update sequence numbers based on new positions
+        const updatedMenuItems = newMenuItems.map((item, index) => ({
+          ...item,
+          sequence: index + 1
+        }));
+        
+        // Monitor performance
+        await monitorFirebaseOperation('bulkUpdateMenuItems_debounced', async () => {
+          await bulkUpdateMenuItems(updatedMenuItems);
+        });
+        
+        setLastSyncTime(Date.now());
+        console.log('Debounced menu item sequence updated successfully');
+      } catch (error) {
+        console.error('Error in debounced moveItem:', error);
+        alert('Failed to update item sequence. Please try again.');
+      } finally {
+        setSyncPending(false);
+      }
+    }, 300); // 300ms debounce delay
+  }, [menuItems]);
   
   // Load menu items from Firebase on component mount and subscribe to real-time updates
   useEffect(() => {
@@ -239,6 +276,31 @@ const SettingsPage = () => {
     // Cleanup subscription
     return () => {
       if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      console.log('Connection restored');
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      console.log('Connection lost');
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      // Clear debounce timer on unmount
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
   }, []);
 
@@ -550,7 +612,7 @@ const SettingsPage = () => {
                     console.error('Error moving item down:', error);
                   }
                 }}
-                disabled={currentIndex === menuItems.length - 1}
+                disabled={currentIndex === sortedMenuItems.length - 1}
                 title="Move Down"
                 aria-label={`Move ${item.name} down in sequence`}
               >
@@ -560,7 +622,7 @@ const SettingsPage = () => {
                 type="number"
                 className="position-input"
                 min="1"
-                max={menuItems.length}
+                max={sortedMenuItems.length}
                 value={item.sequence}
                 onChange={async (e) => {
                   try {
@@ -908,6 +970,18 @@ const SettingsPage = () => {
         <div className="sidebar-nav">
           <div className="sidebar-header">
             <h2>Settings</h2>
+            {/* Connection Status Indicators */}
+            <div className="connection-status-indicators">
+              <div className={`status-indicator ${isOnline ? 'online' : 'offline'}`} 
+                   title={isOnline ? 'Connected' : 'Offline'}>
+                {isOnline ? '●' : '○'}
+              </div>
+              {syncPending && (
+                <div className="sync-indicator" title="Syncing changes...">
+                  ↻
+                </div>
+              )}
+            </div>
             <button 
               className="hamburger-btn"
               onClick={(e) => {

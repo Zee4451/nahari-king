@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import TablesPage from './components/TablesPage';
+import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
 // Lazy load heavy components
@@ -19,14 +20,28 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <Suspense fallback={<LoadingSpinner />}>
+        <ErrorBoundary>
           <Routes>
             <Route path="/" element={<TablesPage />} />
             <Route path="/tables" element={<TablesPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/history" element={<HistoryPage />} />
+            <Route 
+              path="/settings" 
+              element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <SettingsPage />
+                </Suspense>
+              } 
+            />
+            <Route 
+              path="/history" 
+              element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <HistoryPage />
+                </Suspense>
+              } 
+            />
           </Routes>
-        </Suspense>
+        </ErrorBoundary>
       </div>
     </Router>
   );

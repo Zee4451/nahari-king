@@ -18,6 +18,8 @@ const TablesPage = () => {
   // Initialize with default tables 1-10
   const tablesRef = useRef({});
   
+  const [menuItems, setMenuItems] = useState([]); // Add missing state
+  
   const [tables, setTables] = useState(() => {
     // Create default tables 1-10
     const defaultTables = {};
@@ -36,120 +38,99 @@ const TablesPage = () => {
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [initComplete, setInitComplete] = useState(false);
 
   useEffect(() => {
     let tablesUnsubscribe = null;
     let historyUnsubscribe = null;
-
-    const initializeTables = async () => {
-      // Check if tables exist in Firebase, if not, create default tables 1-10
-      const existingTables = await getAllTables();
-      
-      if (Object.keys(existingTables).length === 0) {
-        // Create default tables 1-10 if none exist
-        for (let i = 1; i <= 10; i++) {
-          const defaultTable = {
-            id: i,
-            orders: [],
-            total: 0
-          };
-          await updateTable(i, defaultTable);
+    let menuItemsUnsubscribe = null;
+    
+    const initializeApp = async () => {
+      try {
+        // Initialize default tables if needed
+        const existingTables = await getAllTables();
+        
+        if (Object.keys(existingTables).length === 0) {
+          // Create default tables 1-10 if none exist
+          for (let i = 1; i <= 10; i++) {
+            const defaultTable = {
+              id: i,
+              orders: [],
+              total: 0
+            };
+            await updateTable(i, defaultTable);
+          }
         }
+        
+        // Subscribe to real-time tables updates
+        tablesUnsubscribe = subscribeToTables((updatedTables) => {
+          setTables(updatedTables);
+          tablesRef.current = updatedTables; // Keep ref in sync
+        });
+        
+        // Subscribe to real-time history updates
+        historyUnsubscribe = subscribeToHistory((updatedHistory) => {
+          setHistory(updatedHistory);
+        });
+        
+        // Load menu items from Firebase
+        try {
+          console.log('Loading menu items...');
+          // Load menu items from Firebase
+          const firebaseMenuItems = await getAllMenuItems();
+          console.log('Firebase menu items:', firebaseMenuItems);
+          
+          if (firebaseMenuItems.length > 0) {
+            // Use Firebase data if it exists
+            console.log('Using Firebase menu items');
+            setMenuItems(firebaseMenuItems.filter(item => item.available));
+          } else {
+            console.log('No Firebase menu items found, keeping default items');
+            // If no Firebase data exists, try to migrate from localStorage if available
+            const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+            console.log('LocalStorage menu items:', savedMenuItems);
+            
+            if (savedMenuItems) {
+              const parsedItems = JSON.parse(savedMenuItems);
+              const availableItems = parsedItems.filter(item => item.available);
+              console.log('Using localStorage menu items');
+              setMenuItems(availableItems);
+            }
+            // If no localStorage either, keep the default items that were set in useState
+          }
+        } catch (error) {
+          console.error('Error loading menu items:', error);
+          // Fallback to localStorage if Firebase fails
+          const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
+          if (savedMenuItems) {
+            setMenuItems(JSON.parse(savedMenuItems).filter(item => item.available));
+          }
+        }
+        
+        // Subscribe to real-time menu items updates
+        menuItemsUnsubscribe = subscribeToMenuItems((updatedMenuItems) => {
+          console.log('Menu items updated:', updatedMenuItems);
+          if (updatedMenuItems.length > 0) {
+            setMenuItems(updatedMenuItems.filter(item => item.available));
+          }
+        });
+        
+        setLoading(false);
+        setInitComplete(true);
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        setLoading(false);
+        setInitComplete(true);
       }
     };
-
-    const loadData = async () => {
-      setLoading(true);
-      
-      // Initialize default tables if needed
-      await initializeTables();
-      
-      // Subscribe to real-time tables updates
-      tablesUnsubscribe = subscribeToTables((updatedTables) => {
-        setTables(updatedTables);
-        tablesRef.current = updatedTables; // Keep ref in sync
-      });
-      
-      // Subscribe to real-time history updates
-      historyUnsubscribe = subscribeToHistory((updatedHistory) => {
-        setHistory(updatedHistory);
-      });
-      
-      setLoading(false);
-    };
     
-    loadData();
+    initializeApp();
     
     // Cleanup subscriptions
     return () => {
       if (tablesUnsubscribe) tablesUnsubscribe();
       if (historyUnsubscribe) historyUnsubscribe();
-    };
-  }, []);
-
-  const [menuItems, setMenuItems] = useState([
-    { id: 'khameeriRoti', name: 'Khameeri Roti', price: 10, available: true },
-    { id: 'butterKhameeriRoti', name: 'Butter Khameeri Roti', price: 15, available: true },
-    { id: 'nalliNihariHalf', name: 'Nalli Nihari Half', price: 160, available: true },
-    { id: 'nalliNihariFull', name: 'Nalli Nihari Full', price: 300, available: true },
-    { id: 'amulButterTadka', name: 'Amul Butter Tadka', price: 40, available: true },
-    { id: 'waterBottle', name: 'Water Bottle', price: 10, available: true },
-    { id: 'nalli', name: 'Nalli (Bone Marrow)', price: 50, available: true },
-    { id: 'extraSoup', name: 'Extra Soup', price: 25, available: true },
-  ]);
-
-  // Load menu items from Firebase and subscribe to real-time updates
-  useEffect(() => {
-    let unsubscribe = null;
-    
-    const loadMenuItems = async () => {
-      try {
-        console.log('Loading menu items...');
-        // Load menu items from Firebase
-        const firebaseMenuItems = await getAllMenuItems();
-        console.log('Firebase menu items:', firebaseMenuItems);
-        
-        if (firebaseMenuItems.length > 0) {
-          // Use Firebase data if it exists
-          console.log('Using Firebase menu items');
-          setMenuItems(firebaseMenuItems.filter(item => item.available));
-        } else {
-          console.log('No Firebase menu items found, keeping default items');
-          // If no Firebase data exists, try to migrate from localStorage if available
-          const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
-          console.log('LocalStorage menu items:', savedMenuItems);
-          
-          if (savedMenuItems) {
-            const parsedItems = JSON.parse(savedMenuItems);
-            const availableItems = parsedItems.filter(item => item.available);
-            console.log('Using localStorage menu items');
-            setMenuItems(availableItems);
-          }
-          // If no localStorage either, keep the default items that were set in useState
-        }
-      } catch (error) {
-        console.error('Error loading menu items:', error);
-        // Fallback to localStorage if Firebase fails
-        const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
-        if (savedMenuItems) {
-          setMenuItems(JSON.parse(savedMenuItems).filter(item => item.available));
-        }
-      }
-    };
-    
-    loadMenuItems();
-    
-    // Subscribe to real-time updates
-    unsubscribe = subscribeToMenuItems((updatedMenuItems) => {
-      console.log('Menu items updated:', updatedMenuItems);
-      if (updatedMenuItems.length > 0) {
-        setMenuItems(updatedMenuItems.filter(item => item.available));
-      }
-    });
-    
-    // Cleanup subscription
-    return () => {
-      if (unsubscribe) unsubscribe();
+      if (menuItemsUnsubscribe) menuItemsUnsubscribe();
     };
   }, []);
 
@@ -341,6 +322,7 @@ const TablesPage = () => {
     
     // Save to history
     const historyEntry = {
+      id: Date.now().toString(), // Add unique ID for React key
       tableId,
       orders: table.orders,
       total: table.total,
@@ -386,6 +368,7 @@ const TablesPage = () => {
         // If there are non-empty orders, save them to history
         if (nonEmptyOrders.length > 0) {
           const historyEntry = {
+            id: Date.now().toString(), // Add unique ID for React key
             tableId,
             orders: nonEmptyOrders,
             total: table.total,
@@ -463,88 +446,95 @@ const TablesPage = () => {
   return (
     <div className="tables-page">
       <NavigationBar currentPage="tables" />
-      <div className="page-content">
-        <TableSection 
-          tables={tables}
-          currentTable={currentTable}
-          setCurrentTable={setCurrentTable}
-          menuItems={menuItems}
-          addOrderToTable={addOrderToTable}
-          addItemToOrder={addItemToOrder}
-          updateItemQuantity={updateItemQuantity}
-          clearTable={clearTable}
-          clearOrder={clearOrder}
-          removeOrder={removeOrder}
-          addNewTable={addNewTable}
-          deleteTable={deleteTable}
-        />
-        
-        {/* Collapsible History Section */}
-        <div className="history-section">
-          <div className="history-header">
-            <div className="history-toggle">
-              <button className="history-toggle-btn" onClick={toggleHistory}>
-                Order History {showHistory ? '▲' : '▼'} ({history.length})
-              </button>
-              {showHistory && history.length > 0 && (
-                <button className="clear-history-btn" onClick={clearHistory}>
-                  Clear All History
-                </button>
-              )}
-            </div>
-          </div>
-          
-          {showHistory && (
-            <div className="history-content">
-              {history.length === 0 ? (
-                <div className="no-history">
-                  <p>No order history yet.</p>
-                </div>
-              ) : (
-                <div className="history-list">
-                  {[...history].reverse().map((entry) => (
-                    <div key={entry.id} className="history-item">
-                      <div className="history-header-row">
-                        <div className="history-info">
-                          <span className="table-number">Table {entry.tableId}</span>
-                          <span className="timestamp">{entry.timestamp}</span>
-                          <span className="total-amount">₹{entry.total}</span>
-                        </div>
-                        <div className="history-actions">
-                          <button 
-                            className="restore-btn" 
-                            onClick={() => restoreOrder(entry)}
-                          >
-                            Restore
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="history-orders">
-                        {entry.orders.map((order, orderIndex) => (
-                          <div key={orderIndex} className="history-order">
-                            <h4>Order {orderIndex + 1}</h4>
-                            <div className="history-items">
-                              {order.items.map((item, itemIndex) => (
-                                <div key={itemIndex} className="history-item-row">
-                                  <span className="item-name">{item.name}</span>
-                                  <span className="item-qty">x{item.quantity}</span>
-                                  <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="order-total">Order Total: ₹{order.total.toFixed(2)}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+      {loading || !initComplete ? (
+        <div className="page-content" style={{ textAlign: 'center', padding: '2rem' }}>
+          <div className="loading-spinner"></div>
+          <p>Loading application...</p>
         </div>
-      </div>
+      ) : (
+        <div className="page-content">
+          <TableSection 
+            tables={tables}
+            currentTable={currentTable}
+            setCurrentTable={setCurrentTable}
+            menuItems={menuItems}
+            addOrderToTable={addOrderToTable}
+            addItemToOrder={addItemToOrder}
+            updateItemQuantity={updateItemQuantity}
+            clearTable={clearTable}
+            clearOrder={clearOrder}
+            removeOrder={removeOrder}
+            addNewTable={addNewTable}
+            deleteTable={deleteTable}
+          />
+          
+          {/* Collapsible History Section */}
+          <div className="history-section">
+            <div className="history-header">
+              <div className="history-toggle">
+                <button className="history-toggle-btn" onClick={toggleHistory}>
+                  Order History {showHistory ? '▲' : '▼'} ({history.length})
+                </button>
+                {showHistory && history.length > 0 && (
+                  <button className="clear-history-btn" onClick={clearHistory}>
+                    Clear All History
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {showHistory && (
+              <div className="history-content">
+                {history.length === 0 ? (
+                  <div className="no-history">
+                    <p>No order history yet.</p>
+                  </div>
+                ) : (
+                  <div className="history-list">
+                    {[...history].reverse().map((entry) => (
+                      <div key={entry.id} className="history-item">
+                        <div className="history-header-row">
+                          <div className="history-info">
+                            <span className="table-number">Table {entry.tableId}</span>
+                            <span className="timestamp">{entry.timestamp}</span>
+                            <span className="total-amount">₹{entry.total}</span>
+                          </div>
+                          <div className="history-actions">
+                            <button 
+                              className="restore-btn" 
+                              onClick={() => restoreOrder(entry)}
+                            >
+                              Restore
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="history-orders">
+                          {entry.orders.map((order, orderIndex) => (
+                            <div key={`${entry.id}-${orderIndex}`} className="history-order">
+                              <h4>Order {orderIndex + 1}</h4>
+                              <div className="history-items">
+                                {order.items.map((item, itemIndex) => (
+                                  <div key={`${entry.id}-${orderIndex}-${itemIndex}`} className="history-item-row">
+                                    <span className="item-name">{item.name}</span>
+                                    <span className="item-qty">x{item.quantity}</span>
+                                    <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="order-total">Order Total: ₹{order.total.toFixed(2)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

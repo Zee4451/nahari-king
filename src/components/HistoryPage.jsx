@@ -56,11 +56,11 @@ const HistoryPage = () => {
         
         <div className="history-orders">
           {entry.orders.map((order, orderIndex) => (
-            <div key={orderIndex} className="history-order">
+            <div key={`${entry.id}-${orderIndex}`} className="history-order">
               <h4>Order {orderIndex + 1}</h4>
               <div className="history-items">
                 {order.items.map((item, itemIndex) => (
-                  <div key={itemIndex} className="history-item-row">
+                  <div key={`${entry.id}-${orderIndex}-${itemIndex}`} className="history-item-row">
                     <span className="item-name">{item.name}</span>
                     <span className="item-qty">x{item.quantity}</span>
                     <span className="item-price">₹{(item.price * item.quantity).toFixed(2)}</span>
