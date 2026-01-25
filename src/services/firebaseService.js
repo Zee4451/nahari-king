@@ -27,7 +27,7 @@ const menuItemsCollection = collection(db, 'menuItems');
 
 // Cache implementation for better performance
 const cache = new Map();
-const CACHE_TTL = 60000; // Increase to 60 seconds cache TTL
+const CACHE_TTL = 120000; // Increase to 2 minutes cache TTL for better hit rate
 
 // Cache statistics for debugging
 const cacheStats = {
@@ -73,7 +73,14 @@ export const clearAllCache = () => {
   console.log('All cache cleared');
 };
 
+// Manual cache clearing utility
+export const clearCacheByPattern = (pattern) => {
+  clearCache(pattern);
+};
+
 const clearCache = (pattern) => {
+  console.log(`clearCache called with pattern: ${pattern || 'ALL'}`);
+  
   if (pattern) {
     let clearedCount = 0;
     for (const key of cache.keys()) {
@@ -94,20 +101,37 @@ const clearCache = (pattern) => {
 let isOnline = navigator.onLine;
 let connectionListeners = [];
 
+console.log(`Initial connection state: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+
 const updateConnectionState = (state) => {
+  console.log(`Connection state changing from ${isOnline ? 'ONLINE' : 'OFFLINE'} to ${state ? 'ONLINE' : 'OFFLINE'}`);
   isOnline = state;
   connectionListeners.forEach(callback => callback(state));
 };
 
 // Monitor connection changes
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => updateConnectionState(true));
-  window.addEventListener('offline', () => updateConnectionState(false));
+  console.log('Setting up connection state monitors');
+  
+  window.addEventListener('online', () => {
+    console.log('Browser went ONLINE');
+    updateConnectionState(true);
+  });
+  
+  window.addEventListener('offline', () => {
+    console.log('Browser went OFFLINE');
+    updateConnectionState(false);
+  });
 }
 
 // Export connection state utilities
-export const getConnectionState = () => isOnline;
+export const getConnectionState = () => {
+  console.log(`getConnectionState called: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+  return isOnline;
+};
+
 export const onConnectionStateChange = (callback) => {
+  console.log('onConnectionStateChange called');
   connectionListeners.push(callback);
   return () => {
     connectionListeners = connectionListeners.filter(cb => cb !== callback);
@@ -129,10 +153,24 @@ export const getAllTables = async () => {
     console.log('Cache miss - fetching from Firebase');
     
     return await monitorFirebaseOperation('getAllTables', async () => {
-      const tablesSnapshot = await getDocs(tablesCollection);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Firebase timeout')), 10000)
+      );
+      
+      const firebasePromise = getDocs(tablesCollection);
+      const tablesSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
+      
       const tables = {};
       tablesSnapshot.forEach((doc) => {
-        tables[doc.id] = doc.data();
+        // Only include necessary fields to reduce payload
+        const data = doc.data();
+        tables[doc.id] = {
+          id: data.id,
+          orders: data.orders || [],
+          total: data.total || 0,
+          ...data // Include any other fields
+        };
       });
       
       // Cache the result
@@ -211,7 +249,13 @@ export const updateTable = async (tableId, tableData) => {
     
     // Monitor the operation
     await monitorFirebaseOperation('updateTable', async () => {
-      await setDoc(doc(tablesCollection, stringTableId), tableData);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Firebase timeout')), 3000)
+      );
+      
+      const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData);
+      await Promise.race([firebasePromise, timeoutPromise]);
     });
   } catch (error) {
     console.error('Error updating table:', error);
@@ -301,10 +345,16 @@ export const addHistory = async (historyData) => {
     
     // Monitor the operation
     await monitorFirebaseOperation('addHistory', async () => {
-      await setDoc(doc(historyCollection, historyId), {
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Firebase timeout')), 2000)
+      );
+      
+      const firebasePromise = setDoc(doc(historyCollection, historyId), {
         ...historyData,
         timestamp: serverTimestamp()
       });
+      await Promise.race([firebasePromise, timeoutPromise]);
     });
   } catch (error) {
     console.error('Error adding history:', error);
@@ -480,12 +530,27 @@ export const getAllMenuItems = async () => {
     console.log('Cache miss - fetching from Firebase');
     
     return await monitorFirebaseOperation('getAllMenuItems', async () => {
-      const menuItemsSnapshot = await getDocs(
-        query(menuItemsCollection, orderBy('sequence', 'asc'))
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Firebase timeout')), 5000)
       );
+      
+      const firebasePromise = getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
+      const menuItemsSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
+      
       const menuItems = [];
       menuItemsSnapshot.forEach((doc) => {
-        menuItems.push({ id: doc.id, ...doc.data() });
+        // Only include necessary fields to reduce payload
+        const data = doc.data();
+        menuItems.push({ 
+          id: doc.id, 
+          name: data.name,
+          price: data.price,
+          available: data.available,
+          sequence: data.sequence,
+          category: data.category,
+          ...data // Include any other fields
+        });
       });
       
       // Cache the result
@@ -794,4 +859,98 @@ export const retryWithBackoff = async (operation, maxRetries = 3, baseDelay = 10
   }
   
   throw lastError;
+};
+
+// Get paged tables data for pagination
+export const getPagedTables = async (lastDoc = null, pageSize = 10) => {
+  try {
+    let q = query(tablesCollection, orderBy('__name__'), limit(pageSize));
+    if (lastDoc) {
+      q = query(q, startAfter(lastDoc));
+    }
+    
+    const tablesSnapshot = await getDocs(q);
+    const tables = {};
+    tablesSnapshot.forEach((doc) => {
+      tables[doc.id] = {
+        id: doc.id,
+        orders: doc.data().orders || [],
+        total: doc.data().total || 0,
+        ...doc.data()
+      };
+    });
+    
+    const lastVisible = tablesSnapshot.docs[tablesSnapshot.docs.length - 1];
+    
+    return { tables, lastVisible };
+  } catch (error) {
+    console.error('Error getting paged tables:', error);
+    return { tables: {}, lastVisible: null };
+  }
+};
+
+// Get paged menu items data for pagination
+export const getPagedMenuItems = async (lastDoc = null, pageSize = 10) => {
+  try {
+    let q = query(menuItemsCollection, orderBy('sequence'), limit(pageSize));
+    if (lastDoc) {
+      q = query(q, startAfter(lastDoc));
+    }
+    
+    const menuItemsSnapshot = await getDocs(q);
+    const menuItems = [];
+    menuItemsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      menuItems.push({
+        id: doc.id,
+        name: data.name,
+        price: data.price,
+        available: data.available,
+        sequence: data.sequence,
+        ...data
+      });
+    });
+    
+    const lastVisible = menuItemsSnapshot.docs[menuItemsSnapshot.docs.length - 1];
+    
+    return { menuItems, lastVisible };
+  } catch (error) {
+    console.error('Error getting paged menu items:', error);
+    return { menuItems: [], lastVisible: null };
+  }
+};
+
+// Get specific fields for menu items to reduce payload
+export const getMenuItemsSelective = async (fields = ['name', 'price', 'available', 'sequence']) => {
+  try {
+    // Check cache first
+    const cacheKey = `menuItems_${fields.join('_')}`;
+    const cachedData = getCached(cacheKey);
+    if (cachedData && isOnline) {
+      console.log('Returning cached selective menu items data');
+      return cachedData;
+    }
+    
+    const menuItemsSnapshot = await getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
+    const menuItems = [];
+    
+    menuItemsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      const item = { id: doc.id };
+      
+      fields.forEach(field => {
+        item[field] = data[field];
+      });
+      
+      menuItems.push(item);
+    });
+    
+    // Cache the result
+    setCached(cacheKey, menuItems);
+    
+    return menuItems;
+  } catch (error) {
+    console.error('Error getting selective menu items:', error);
+    return [];
+  }
 };

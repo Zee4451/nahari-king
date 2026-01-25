@@ -16,7 +16,10 @@ import {
   batchAddHistory,
   getTablesByIds,
   getConnectionState,
-  onConnectionStateChange
+  onConnectionStateChange,
+  getPagedTables,
+  getPagedMenuItems,
+  getMenuItemsSelective
 } from '../services/firebaseService';
 
 const TablesPage = () => {
