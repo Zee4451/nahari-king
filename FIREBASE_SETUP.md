@@ -11,7 +11,15 @@
 4. Follow the setup process (analytics is optional)
 5. Wait for project creation to complete
 
-## Step 2: Configure Firestore Database
+## Step 2: Enable Firebase Authentication
+1. In Firebase Console, click on your project
+2. Navigate to **"Authentication"** in the left sidebar
+3. Click **"Get Started"** or **"Enable"**
+4. Click on the **"Email/Password"** sign-in method
+5. Toggle it to **Enabled**
+6. Click **"Save"**
+
+## Step 3: Configure Firestore Database
 1. In Firebase Console, click on your project
 2. Navigate to "Firestore Database" in the left sidebar
 3. Click "Create Database"
@@ -19,14 +27,14 @@
 5. Select your preferred location
 6. Click "Enable"
 
-## Step 3: Get Firebase Configuration
+## Step 4: Get Firebase Configuration
 1. In Firebase Console, go to Project Settings (gear icon)
 2. Scroll down to "Your apps" section
 3. Click on the </> (web) icon to add a web app
 4. Enter app nickname (e.g., "nalli-nihari-web")
 5. Copy the Firebase configuration object that appears
 
-## Step 4: Update Firebase Configuration
+## Step 5: Update Firebase Configuration
 1. Open `src/firebase.js` in your project
 2. Replace the placeholder values with your actual Firebase configuration:
 ```javascript
@@ -40,10 +48,10 @@ const firebaseConfig = {
 };
 ```
 
-## Step 5: Run the Application
+## Step 6: Run the Application
 1. Make sure you have installed the dependencies: `npm install`
 2. Start the development server: `npm run dev`
-3. The application will now use Firebase for real-time data synchronization
+3. The application will now use Firebase for authentication and real-time data synchronization
 
 ## Troubleshooting
 If you encounter the deprecation warning "Firestore (11.10.0): enableIndexedDbPersistence() will be deprecated in the future", the code has been updated to use the new `FirestoreSettings.cache` method instead. The `firebase.js` file already uses `initializeFirestore` with `cacheSizeBytes: CACHE_SIZE_UNLIMITED` for offline persistence.
@@ -52,6 +60,7 @@ If you encounter the deprecation warning "Firestore (11.10.0): enableIndexedDbPe
 The application uses two Firestore collections:
 - `tables`: Stores table data (orders, totals, etc.)
 - `history`: Stores order history (cleared orders)
+- `users`: Stores user authentication data and permissions
 
 ## Real-time Features
 - Changes made on one device will appear immediately on all other devices
@@ -75,6 +84,17 @@ service cloud.firestore {
     match /history/{document} {
       allow read, write: if true; // Adjust based on your security needs
     }
+    match /users/{document} {
+      allow read, write: if true; // Adjust based on your security needs
+    }
   }
 }
 ```
+
+## Common Authentication Issues
+1. **"auth/configuration-not-found"**: Authentication service not enabled in Firebase Console
+2. **"auth/invalid-api-key"**: Incorrect API key in firebase.js configuration
+3. **"auth/network-request-failed"**: Network connectivity issues
+4. **"auth/unauthorized-domain"**: Domain not whitelisted in Firebase Console (for production)
+
+Make sure to enable Authentication in Firebase Console as described in Step 2 above.

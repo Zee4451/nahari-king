@@ -233,8 +233,11 @@ class AuthService {
         case 'auth/network-request-failed':
           errorMessage = 'Network error. Please check your connection.';
           break;
+        case 'auth/configuration-not-found':
+          errorMessage = 'Authentication service not configured. Please enable Firebase Authentication in Firebase Console.';
+          break;
         default:
-          errorMessage = 'Login failed. Please try again.';
+          errorMessage = error.message || 'Login failed. Please try again.';
       }
       
       throw new Error(errorMessage);
@@ -333,6 +336,9 @@ class AuthService {
           break;
         case 'auth/weak-password':
           errorMessage = 'Password is too weak';
+          break;
+        case 'auth/configuration-not-found':
+          errorMessage = 'Authentication service not configured. Please enable Firebase Authentication in Firebase Console.';
           break;
         default:
           errorMessage = error.message || 'Registration failed';
