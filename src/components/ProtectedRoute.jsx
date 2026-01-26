@@ -13,15 +13,15 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
     const unsubscribe = listenToAuthState((user) => {
       const authenticated = isAuthenticated();
       
-      if (!authenticated) {
-        // Not authenticated - redirect to login
+      if (!authenticated && requiredPermission) {
+        // Not authenticated but permission is required - redirect to login
         navigate('/login', { 
           state: { from: location },
           replace: true 
         });
         setIsAuthorized(false);
-      } else {
-        // Authenticated - check permissions if required
+      } else if (authenticated && requiredPermission) {
+        // Authenticated and permission is required - check permissions
         let authorized = true;
         
         if (requiredPermission) {
@@ -39,6 +39,12 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
         }
         
         setIsAuthorized(authorized);
+      } else if (!requiredPermission) {
+        // No permission required, allow access
+        setIsAuthorized(true);
+      } else {
+        // Authenticated but no specific permission required
+        setIsAuthorized(true);
       }
       
       setAuthChecked(true);
@@ -57,8 +63,8 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
     );
   }
 
-  // Show login if not authenticated
-  if (!isAuthenticated()) {
+  // Show login if not authenticated and permission is required
+  if (requiredPermission && !isAuthenticated()) {
     return <LoginPage />;
   }
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { logout } from '../services/authService';
+import { logout, isAuthenticated } from '../services/authService';
 
 const NavigationBar = ({ currentPage }) => {
   const handleLogout = async () => {
@@ -12,6 +12,9 @@ const NavigationBar = ({ currentPage }) => {
       console.error('Logout failed:', error);
     }
   };
+
+  // Show logout button only if user is authenticated
+  const showLogoutButton = isAuthenticated();
 
   return (
     <nav className="navigation-bar">
@@ -28,13 +31,15 @@ const NavigationBar = ({ currentPage }) => {
         >
           Settings
         </Link>
-        <button 
-          className="logout-button"
-          onClick={handleLogout}
-          type="button"
-        >
-          Logout
-        </button>
+        {showLogoutButton && (
+          <button 
+            className="logout-button"
+            onClick={handleLogout}
+            type="button"
+          >
+            Logout
+          </button>
+        )}
       </div>
     </nav>
   );

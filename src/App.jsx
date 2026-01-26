@@ -28,39 +28,22 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             
-            {/* Protected routes */}
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <TablesPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/tables" 
-              element={
-                <ProtectedRoute>
-                  <TablesPage />
-                </ProtectedRoute>
-              } 
-            />
+            {/* Public routes - no authentication required */}
+            <Route path="/" element={<TablesPage />} />
+            <Route path="/tables" element={<TablesPage />} />
+            <Route path="/history" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <HistoryPage />
+              </Suspense>
+            } />
+            
+            {/* Protected route - Settings page requires authentication */}
             <Route 
               path="/settings" 
               element={
                 <ProtectedRoute requiredPermission="settings_access">
                   <Suspense fallback={<LoadingSpinner />}>
                     <SettingsPage />
-                  </Suspense>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/history" 
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <HistoryPage />
                   </Suspense>
                 </ProtectedRoute>
               } 
