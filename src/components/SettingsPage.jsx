@@ -19,6 +19,7 @@ import {
   retryWithBackoff
 } from '../services/firebaseService';
 import { useRenderPerformance, useFunctionPerformance, monitorFirebaseOperation } from '../utils/performanceMonitor';
+import './SettingsPage.css'; // Import the CSS file
 
 const SettingsPage = () => {
   // Define item types for drag and drop
