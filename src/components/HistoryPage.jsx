@@ -2,8 +2,36 @@ import React, { useState, useEffect, useMemo, memo } from 'react';
 import { List } from 'react-window';
 import NavigationBar from './NavigationBar';
 import { getAllHistory, subscribeToHistory } from '../services/firebaseService';
+import { Timestamp } from 'firebase/firestore'; // Add this import for timestamp handling
 
 const HistoryPage = () => {
+  // Helper function to format timestamp
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    
+    // If it's a Firestore Timestamp object
+    if (timestamp instanceof Timestamp) {
+      return new Date(timestamp.seconds * 1000).toLocaleString();
+    }
+    
+    // If it's already a Date object
+    if (timestamp instanceof Date) {
+      return timestamp.toLocaleString();
+    }
+    
+    // If it's already a string
+    if (typeof timestamp === 'string') {
+      return timestamp;
+    }
+    
+    // If it's an object with seconds and nanoseconds (Firestore Timestamp)
+    if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+      return new Date(timestamp.seconds * 1000).toLocaleString();
+    }
+    
+    return String(timestamp);
+  };
+  
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +69,7 @@ const HistoryPage = () => {
         <div className="history-header-row">
           <div className="history-info">
             <span className="table-number">Table {entry.tableId}</span>
-            <span className="timestamp">{entry.timestamp}</span>
+            <span className="timestamp">{formatTimestamp(entry.timestamp)}</span>
             <span className="total-amount">₹{entry.total}</span>
           </div>
           <div className="history-actions">

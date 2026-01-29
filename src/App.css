@@ -626,6 +626,17 @@ body {
   background-color: #0056b3; /* Darker blue */
 }
 
+.quantity-btn.plus {
+  font-size: 1.5rem; /* Larger font size for plus symbol */
+  line-height: 1; /* Ensure proper vertical alignment */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex-direction: column;
+  padding: 0;
+}
+
 .quantity {
   min-width: 28px; /* Reduced width to prevent shifting */
   text-align: center;
@@ -756,6 +767,17 @@ body {
 
 .menu-item-quantity .quantity-btn.plus:hover {
   background-color: #0056b3; /* Darker blue */
+}
+
+.menu-item-quantity .quantity-btn.plus {
+  font-size: 1.5rem; /* Larger font size for plus symbol */
+  line-height: 1; /* Ensure proper vertical alignment */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex-direction: column;
+  padding: 0;
 }
 
 .menu-item-quantity .quantity {

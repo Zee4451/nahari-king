@@ -48,7 +48,38 @@ const firebaseConfig = {
 };
 ```
 
-## Step 6: Run the Application
+## Step 6: Create Required Composite Indexes
+Firebase requires composite indexes for certain queries to work efficiently. Follow these steps:
+
+### For Inventory Turnover Reports:
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project: `nahari-king`
+3. Navigate to **Firestore Database** → **Indexes** tab
+4. Click **Create Index**
+5. Configure with these settings:
+   - **Collection ID:** `usage_logs`
+   - **Query Scope:** Collection
+   - **Fields Indexed:**
+     - `itemId` Ascending
+     - `timestamp` Descending
+6. Click **Create**
+
+### For Purchase Records Queries:
+Repeat the above process for the `purchase_records` collection with the same field structure.
+
+### For Waste Entries Queries:
+Repeat the above process for the `waste_entries` collection with the same field structure.
+
+Alternatively, you can use the Firebase CLI:
+```bash
+firebase firestore:indexes > firestore.indexes.json
+```
+Then deploy the indexes:
+```bash
+firebase deploy --only firestore:indexes
+```
+
+## Step 7: Run the Application
 1. Make sure you have installed the dependencies: `npm install`
 2. Start the development server: `npm run dev`
 3. The application will now use Firebase for authentication and real-time data synchronization
@@ -57,15 +88,20 @@ const firebaseConfig = {
 If you encounter the deprecation warning "Firestore (11.10.0): enableIndexedDbPersistence() will be deprecated in the future", the code has been updated to use the new `FirestoreSettings.cache` method instead. The `firebase.js` file already uses `initializeFirestore` with `cacheSizeBytes: CACHE_SIZE_UNLIMITED` for offline persistence.
 
 ## Collection Structure
-The application uses two Firestore collections:
+The application uses these Firestore collections:
 - `tables`: Stores table data (orders, totals, etc.)
 - `history`: Stores order history (cleared orders)
 - `users`: Stores user authentication data and permissions
+- `inventory_items`: Stores inventory item data
+- `purchase_records`: Stores purchase transaction records
+- `usage_logs`: Stores inventory usage records
+- `waste_entries`: Stores waste/discard records
 
 ## Real-time Features
 - Changes made on one device will appear immediately on all other devices
 - Order history is synchronized across all devices
 - Table data is updated in real-time
+- Inventory data is synchronized in real-time
 
 ## Offline Support
 - The application uses Firestore's offline persistence
@@ -87,6 +123,18 @@ service cloud.firestore {
     match /users/{document} {
       allow read, write: if true; // Adjust based on your security needs
     }
+    match /inventory_items/{document} {
+      allow read, write: if true; // Adjust based on your security needs
+    }
+    match /purchase_records/{document} {
+      allow read, write: if true; // Adjust based on your security needs
+    }
+    match /usage_logs/{document} {
+      allow read, write: if true; // Adjust based on your security needs
+    }
+    match /waste_entries/{document} {
+      allow read, write: if true; // Adjust based on your security needs
+    }
   }
 }
 ```
@@ -98,3 +146,8 @@ service cloud.firestore {
 4. **"auth/unauthorized-domain"**: Domain not whitelisted in Firebase Console (for production)
 
 Make sure to enable Authentication in Firebase Console as described in Step 2 above.
+
+## Common Index Issues
+1. **"The query requires an index"**: Create the required composite indexes as described in Step 6
+2. **Index build delays**: Newly created indexes may take a few minutes to become active
+3. **Multiple index errors**: Check that all required indexes (usage_logs, purchase_records, waste_entries) are created

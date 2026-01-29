@@ -3,6 +3,8 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import NavigationBar from './NavigationBar';
 import UserManagement from './UserManagement';
+import InventoryManagement from './InventoryManagement';
+import MonthlyReport from './MonthlyReport';
 import { 
   getAllTables,
   subscribeToTables,
@@ -19,6 +21,7 @@ import {
   retryWithBackoff
 } from '../services/firebaseService';
 import { useRenderPerformance, useFunctionPerformance, monitorFirebaseOperation } from '../utils/performanceMonitor';
+import { serverTimestamp } from 'firebase/firestore'; // Add missing import
 import './SettingsPage.css'; // Import the CSS file
 
 const SettingsPage = () => {
@@ -60,10 +63,10 @@ const SettingsPage = () => {
   });
   
   // State for UI management
-  const [activeTab, setActiveTab] = useState('menu'); // 'menu', 'tables', 'users'
+  const [activeTab, setActiveTab] = useState('menu'); // 'menu', 'tables', 'users', 'inventory', 'reports'
   const [draggedItem, setDraggedItem] = useState(null);
   
-  // Initialize the app
+  // Initialize the app with proper real-time subscriptions
   useEffect(() => {
     const initializeApp = async () => {
       try {
@@ -76,13 +79,15 @@ const SettingsPage = () => {
           setTables(updatedTables);
         });
         
-        // Load menu items from Firebase
-        const firebaseMenuItems = await getAllMenuItems();
-        setMenuItems(firebaseMenuItems);
-        
-        // Subscribe to real-time menu items updates
+        // Subscribe to real-time menu items updates with proper error handling
         const unsubscribeMenuItems = subscribeToMenuItems((updatedMenuItems) => {
-          setMenuItems(updatedMenuItems);
+          try {
+            // Sort by sequence for consistent display
+            const sortedItems = updatedMenuItems.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+            setMenuItems(sortedItems);
+          } catch (error) {
+            console.error('Error processing menu items update in Settings:', error);
+          }
         });
         
         // Cleanup subscriptions on unmount
@@ -103,7 +108,7 @@ const SettingsPage = () => {
     };
   }, []);
   
-  // Drag and drop handlers for menu items
+  // Drag and drop handlers for menu items with proper real-time sync
   const moveMenuItem = useCallback(async (dragIndex, hoverIndex) => {
     const draggedItemLocal = menuItems[dragIndex];
     const newMenuItems = [...menuItems];
@@ -119,19 +124,16 @@ const SettingsPage = () => {
       sequence: index + 1
     }));
     
-    setMenuItems(updatedItems);
-    
     // Update in Firebase with retry mechanism
     try {
       await retryWithBackoff(() => bulkUpdateMenuItems(updatedItems));
+      // Let real-time subscription handle UI update
     } catch (error) {
       console.error('Error updating menu item positions:', error);
-      // Revert to original state on failure
-      setMenuItems(menuItems);
     }
   }, [menuItems]);
   
-  // Add new menu item
+  // Add new menu item with proper real-time sync
   const addMenuItem = async () => {
     if (!newItem.name || !newItem.price) {
       alert('Please enter both name and price');
@@ -143,14 +145,16 @@ const SettingsPage = () => {
       price: parseFloat(newItem.price),
       available: newItem.available,
       category: newItem.category || 'Main Course',
-      sequence: menuItems.length + 1
+      sequence: menuItems.length + 1,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     };
     
     try {
       const newId = await addMenuItemFirebase(menuItemData);
       if (newId) {
-        setMenuItems([...menuItems, { id: newId, ...menuItemData }]);
         setNewItem({ name: '', price: '', available: true, category: '' });
+        // Let real-time subscription handle UI update
       }
     } catch (error) {
       console.error('Error adding menu item:', error);
@@ -158,7 +162,7 @@ const SettingsPage = () => {
     }
   };
   
-  // Update menu item
+  // Update menu item with proper real-time sync
   const updateMenuItem = async () => {
     if (!editingItem.name || !editingItem.price) {
       alert('Please enter both name and price');
@@ -166,49 +170,77 @@ const SettingsPage = () => {
     }
     
     try {
-      await updateMenuItemFirebase(editingItem.id, {
-        name: editingItem.name,
+      // Validate the data before sending
+      const updateData = {
+        name: editingItem.name.trim(),
         price: parseFloat(editingItem.price),
-        available: editingItem.available,
-        category: editingItem.category
+        available: Boolean(editingItem.available),
+        category: editingItem.category || 'Main Course'
+      };
+      
+      console.log('Validated update data:', updateData);
+      console.log('Item ID being updated:', editingItem.id);
+      
+      // Check if ID is valid
+      if (!editingItem.id) {
+        throw new Error('Invalid item ID');
+      }
+      
+      // Use the simple update function that works reliably
+      const success = await updateMenuItemFirebase(editingItem.id, {
+        ...updateData,
+        updatedAt: serverTimestamp()
       });
-      setMenuItems(menuItems.map(item => 
-        item.id === editingItem.id ? editingItem : item
-      ));
-      setEditingItem(null);
+      
+      console.log('Update operation result:', success);
+      
+      if (success) {
+        // Clear editing state - let real-time subscription handle UI update
+        setEditingItem(null);
+      } else {
+        // Handle failure case
+        throw new Error('Update operation failed - function returned false');
+      }
     } catch (error) {
       console.error('Error updating menu item:', error);
       alert('Failed to update menu item. Please try again.');
     }
   };
   
-  // Delete menu item
+  // Delete menu item with proper real-time sync
   const deleteMenuItem = async (itemId) => {
     if (window.confirm('Are you sure you want to delete this menu item?')) {
       try {
-        await deleteMenuItemFirebase(itemId);
-        setMenuItems(menuItems.filter(item => item.id !== itemId));
+        const success = await deleteMenuItemFirebase(itemId);
+        
+        if (!success) {
+          // Handle failure case
+          throw new Error('Delete operation failed');
+        }
+        // Let real-time subscription handle UI update
       } catch (error) {
         console.error('Error deleting menu item:', error);
         alert('Failed to delete menu item. Please try again.');
       }
     }
   };
-  
-  // Toggle menu item availability
+
+  // Toggle menu item availability with proper real-time sync
   const toggleAvailability = async (itemId, currentAvailability) => {
     try {
-      await toggleMenuItemAvailability(itemId, currentAvailability);
-      setMenuItems(menuItems.map(item => 
-        item.id === itemId 
-          ? { ...item, available: !currentAvailability }
-          : item
-      ));
+      // Use the simple toggle function that works reliably
+      const success = await toggleMenuItemAvailability(itemId, currentAvailability);
+      
+      if (!success) {
+        // Handle failure case
+        throw new Error('Toggle operation failed');
+      }
+      // Let real-time subscription handle UI update
     } catch (error) {
       console.error('Error toggling availability:', error);
     }
   };
-  
+
   // Draggable item component
   const DraggableMenuItem = ({ item, index }) => {
     const [{ isDragging }, drag] = useDrag({
@@ -288,10 +320,22 @@ const SettingsPage = () => {
               Table Management
             </button>
             <button 
+              className={`tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => setActiveTab('inventory')}
+            >
+              Inventory & Expenses
+            </button>
+            <button 
               className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
               onClick={() => setActiveTab('users')}
             >
               User Management
+            </button>
+            <button 
+              className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reports')}
+            >
+              Reports
             </button>
           </div>
           
@@ -430,10 +474,24 @@ const SettingsPage = () => {
             </div>
           )}
           
+          {/* Inventory & Expenses Tab */}
+          {activeTab === 'inventory' && (
+            <div className="settings-section">
+              <InventoryManagement />
+            </div>
+          )}
+          
           {/* User Management Tab */}
           {activeTab === 'users' && (
             <div className="settings-section">
               <UserManagement />
+            </div>
+          )}
+          
+          {/* Reports Tab */}
+          {activeTab === 'reports' && (
+            <div className="settings-section">
+              <MonthlyReport />
             </div>
           )}
         </div>

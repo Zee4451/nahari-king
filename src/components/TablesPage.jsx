@@ -21,8 +21,36 @@ import {
   getPagedMenuItems,
   getMenuItemsSelective
 } from '../services/firebaseService';
+import { Timestamp } from 'firebase/firestore'; // Add this import for timestamp handling
 
 const TablesPage = () => {
+  // Helper function to format timestamp
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    
+    // If it's a Firestore Timestamp object
+    if (timestamp instanceof Timestamp) {
+      return new Date(timestamp.seconds * 1000).toLocaleString();
+    }
+    
+    // If it's already a Date object
+    if (timestamp instanceof Date) {
+      return timestamp.toLocaleString();
+    }
+    
+    // If it's already a string
+    if (typeof timestamp === 'string') {
+      return timestamp;
+    }
+    
+    // If it's an object with seconds and nanoseconds (Firestore Timestamp)
+    if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+      return new Date(timestamp.seconds * 1000).toLocaleString();
+    }
+    
+    return String(timestamp);
+  };
+
   // Initialize with default tables 1-10
   const tablesRef = useRef({});
 
@@ -162,10 +190,15 @@ const TablesPage = () => {
   }, []);
 
   const clearOrder = useCallback(async (tableId, orderId) => {
+    console.log('Clearing order:', orderId, 'from table:', tableId);
     const table = tablesRef.current[tableId];
-    if (!table) return;
+    if (!table) {
+      console.log('Table not found:', tableId);
+      return;
+    }
 
     const orderToClear = table.orders.find(order => order.id === orderId);
+    console.log('Order to clear:', orderToClear);
 
     // Save to history if the order has items
     if (orderToClear && orderToClear.total > 0) {
@@ -173,9 +206,10 @@ const TablesPage = () => {
         tableId,
         orders: [orderToClear], // Save just this order
         total: orderToClear.total,
-        timestamp: new Date().toLocaleString()
+        timestamp: new Date().toLocaleString() // Use properly formatted timestamp
       };
 
+      console.log('Saving order to history:', historyEntry);
       await addHistoryFirebase(historyEntry);
     }
 
@@ -215,10 +249,15 @@ const TablesPage = () => {
   }, []);
 
   const clearTable = useCallback(async (tableId) => {
+    console.log('Clearing table:', tableId);
     const table = tablesRef.current[tableId];
-    if (!table) return;
+    if (!table) {
+      console.log('Table not found:', tableId);
+      return;
+    }
 
     if (table.orders.length === 0 || table.total === 0) {
+      console.log('Table is already empty:', tableId);
       // If table is empty, just reset it
       const updatedTable = {
         id: tableId,
@@ -230,14 +269,18 @@ const TablesPage = () => {
       return;
     }
 
+    console.log('Saving history for table:', tableId, 'with orders:', table.orders);
+    
     // Save to history using batch operation for better performance
     const historyEntry = {
       id: Date.now().toString(), // Add unique ID for React key
       tableId,
       orders: table.orders,
       total: table.total,
-      timestamp: new Date().toLocaleString()
+      timestamp: new Date().toLocaleString() // Use properly formatted timestamp
     };
+
+    console.log('History entry to save:', historyEntry);
 
     // Use batch operation if multiple entries need to be saved
     await addHistoryFirebase(historyEntry);
@@ -281,7 +324,7 @@ const TablesPage = () => {
             tableId,
             orders: nonEmptyOrders,
             total: table.total,
-            timestamp: new Date().toLocaleString()
+            timestamp: new Date().toLocaleString() // Use properly formatted timestamp
           };
 
           await addHistoryFirebase(historyEntry);
@@ -348,8 +391,6 @@ const TablesPage = () => {
       };
 
       await updateTable(historyEntry.tableId, updatedTable);
-
-      alert(`Order restored to Table ${historyEntry.tableId}`);
     }
   }, [isOnline]);
 
@@ -390,43 +431,32 @@ const TablesPage = () => {
           tablesRef.current = updatedTables; // Keep ref in sync
         });
 
+        // Load history from Firebase
+        try {
+          const firebaseHistory = await getAllHistory();
+          console.log('Initial history loaded:', firebaseHistory);
+          setHistory(firebaseHistory);
+        } catch (error) {
+          console.error('Error loading initial history:', error);
+        }
+        
         // Subscribe to real-time history updates
         historyUnsubscribe = subscribeToHistory((updatedHistory) => {
+          console.log('History updated:', updatedHistory);
           setHistory(updatedHistory);
         });
 
-        // Load menu items from Firebase
-        try {
-          // Load menu items from Firebase
-          const firebaseMenuItems = await getAllMenuItems();
-
-          if (firebaseMenuItems.length > 0) {
-            // Use Firebase data if it exists
-            setMenuItems(firebaseMenuItems.filter(item => item.available));
-          } else {
-            // If no Firebase data exists, try to migrate from localStorage if available
-            const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
-            
-            if (savedMenuItems) {
-              const parsedItems = JSON.parse(savedMenuItems);
-              const availableItems = parsedItems.filter(item => item.available);
-              setMenuItems(availableItems);
-            }
-            // If no localStorage either, keep the default items that were set in useState
-          }
-        } catch (error) {
-          console.error('Error loading menu items:', error);
-          // Fallback to localStorage if Firebase fails
-          const savedMenuItems = localStorage.getItem('nalliNihariMenuItems');
-          if (savedMenuItems) {
-            setMenuItems(JSON.parse(savedMenuItems).filter(item => item.available));
-          }
-        }
-
-        // Subscribe to real-time menu items updates
+        // Subscribe to real-time menu items updates with proper error handling
         menuItemsUnsubscribe = subscribeToMenuItems((updatedMenuItems) => {
-          if (updatedMenuItems.length > 0) {
-            setMenuItems(updatedMenuItems.filter(item => item.available));
+          try {
+            // Filter for available items and sort by sequence
+            const availableItems = updatedMenuItems
+              .filter(item => item.available !== false)
+              .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+            
+            setMenuItems(availableItems);
+          } catch (error) {
+            console.error('Error processing menu items update:', error);
           }
         });
 
@@ -447,9 +477,10 @@ const TablesPage = () => {
       if (historyUnsubscribe) historyUnsubscribe();
       if (menuItemsUnsubscribe) menuItemsUnsubscribe();
     };
-  }, []); // Removed dependencies that caused re-subscriptions
+  }, []);
 
   const toggleHistory = useCallback(() => {
+    console.log('Toggling history. Current state:', showHistory);
     setShowHistory(!showHistory);
   }, [showHistory]);
 
@@ -502,7 +533,14 @@ const TablesPage = () => {
           <div className="history-section">
             <div className="history-header">
               <div className="history-toggle">
-                <button className="history-toggle-btn" onClick={toggleHistory}>
+                <button 
+                  className="history-toggle-btn" 
+                  onClick={(e) => {
+                    console.log('History button clicked');
+                    e.stopPropagation();
+                    toggleHistory();
+                  }}
+                >
                   Order History {showHistory ? '▲' : '▼'} ({history.length})
                 </button>
                 {showHistory && history.length > 0 && (
@@ -526,7 +564,7 @@ const TablesPage = () => {
                         <div className="history-header-row">
                           <div className="history-info">
                             <span className="table-number">Table {entry.tableId}</span>
-                            <span className="timestamp">{entry.timestamp}</span>
+                            <span className="timestamp">{formatTimestamp(entry.timestamp)}</span>
                             <span className="total-amount">₹{entry.total}</span>
                           </div>
                           <div className="history-actions">
