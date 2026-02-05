@@ -125,18 +125,35 @@ class AuthService {
             };
           } else {
             // Create default user document for existing Firebase Auth users
-            await setDoc(doc(db, 'users', user.uid), {
-              email: user.email,
-              role: 'admin', // Default admin for first user
-              permissions: ['settings_access', 'menu_management', 'user_management'],
-              createdAt: new Date().toISOString()
-            });
-            
-            this.currentUser = {
-              ...user,
-              role: 'admin',
-              permissions: ['settings_access', 'menu_management', 'user_management']
-            };
+            // Check if this is the first user in the system to determine role
+            try {
+              const usersCollection = collection(db, 'users');
+              const usersSnapshot = await getDocs(usersCollection);
+              const isFirstUser = usersSnapshot.empty;
+              
+              // First user gets admin privileges, others get default user role
+              const role = isFirstUser ? 'admin' : 'user';
+              const permissions = isFirstUser ? 
+                ['settings_access', 'menu_management', 'user_management'] : 
+                [];
+                
+              await setDoc(doc(db, 'users', user.uid), {
+                email: user.email,
+                role: role,
+                permissions: permissions,
+                createdAt: new Date().toISOString()
+              });
+              
+              this.currentUser = {
+                ...user,
+                role: role,
+                permissions: permissions
+              };
+            } catch (creationError) {
+              console.error('Error creating user document:', creationError);
+              // Fallback to basic user without permissions
+              this.currentUser = user;
+            }
           }
         } catch (error) {
           console.error('Error fetching user data:', error);

@@ -2,40 +2,82 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection - only authenticated users can read their own data
+    // Users collection - authenticated users can read user data and only write to their own
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && 
         request.resource.data.email is string &&
         request.resource.data.role is string &&
         request.resource.data.permissions is list;
     }
     
-    // Tables collection - authenticated users with proper permissions
+    // Helper function to check user permissions
+    function hasPermission(uid, permission) {
+      return request.auth != null && 
+             request.auth.uid != null &&
+             exists(/databases/$(database)/documents/users/$(uid)) &&
+             permission in get(/databases/$(database)/documents/users/$(uid)).data.permissions;
+    }
+    
+    function isAdmin(uid) {
+      return request.auth != null && 
+             request.auth.uid != null &&
+             exists(/databases/$(database)/documents/users/$(uid)) &&
+             get(/databases/$(database)/documents/users/$(uid)).data.role == 'admin';
+    }
+    
+    // Tables collection - all authenticated users can read/write (needed for POS functionality)
     match /tables/{document} {
-      allow read, write: if request.auth != null && 
-        ('settings_access' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions ||
-         'menu_management' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions);
+      allow read, write: if request.auth != null;
     }
     
     // Menu items collection - authenticated users with menu management permissions
     match /menuItems/{document} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && 
-        'menu_management' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions;
+        hasPermission(request.auth.uid, 'menu_management');
     }
     
     // History collection - authenticated users with proper permissions
     match /history/{document} {
       allow read, write: if request.auth != null && 
-        ('settings_access' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions ||
-         'order_history' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions);
+        (hasPermission(request.auth.uid, 'settings_access') ||
+         hasPermission(request.auth.uid, 'order_history'));
     }
     
     // Settings collection - only admin users
     match /settings/{document} {
-      allow read, write: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow read, write: if isAdmin(request.auth.uid);
+    }
+    
+    // Inventory-related collections - authenticated users with proper permissions
+    match /inventory_items/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (hasPermission(request.auth.uid, 'settings_access') ||
+         hasPermission(request.auth.uid, 'menu_management'));
+    }
+    
+    match /purchase_records/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (hasPermission(request.auth.uid, 'settings_access') ||
+         hasPermission(request.auth.uid, 'menu_management'));
+    }
+    
+    match /usage_logs/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (hasPermission(request.auth.uid, 'settings_access') ||
+         hasPermission(request.auth.uid, 'menu_management'));
+    }
+    
+    match /waste_entries/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (hasPermission(request.auth.uid, 'settings_access') ||
+         hasPermission(request.auth.uid, 'menu_management'));
     }
     
     // Default deny for any other collections

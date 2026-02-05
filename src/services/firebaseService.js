@@ -165,7 +165,7 @@ export const getAllTables = async () => {
     return await monitorFirebaseOperation('getAllTables', async () => {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Firebase timeout')), 10000)
+        setTimeout(() => reject(new Error('Firebase timeout')), 60000)
       );
       
       const firebasePromise = getDocs(tablesCollection);
@@ -277,7 +277,7 @@ export const updateTable = async (tableId, tableData) => {
           await monitorFirebaseOperation('updateTable', async () => {
             // Add timeout to prevent hanging
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Firebase timeout')), 3000)
+              setTimeout(() => reject(new Error('Firebase timeout')), 60000)
             );
             
             const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData);
@@ -539,7 +539,7 @@ export const getAllMenuItems = async () => {
     return await monitorFirebaseOperation('getAllMenuItems', async () => {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Firebase timeout')), 5000)
+        setTimeout(() => reject(new Error('Firebase timeout')), 30000)
       );
       
       const firebasePromise = getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
@@ -1414,7 +1414,7 @@ export const getAllInventoryItems = async () => {
     return await monitorFirebaseOperation('getAllInventoryItems', async () => {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Firebase timeout')), 5000)
+        setTimeout(() => reject(new Error('Firebase timeout')), 30000)
       );
       
       const firebasePromise = getDocs(inventoryItemsCollection);
