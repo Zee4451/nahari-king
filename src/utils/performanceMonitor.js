@@ -1,6 +1,24 @@
 import React from 'react';
 
-// Performance monitoring utilities
+// Performance Monitoring System
+// ================================================
+// Comprehensive performance monitoring for the restaurant management application
+// Tracks operation timing, identifies bottlenecks, and provides optimization insights
+//
+// Features:
+// - Operation timing with min/max/average metrics
+// - Real-time performance warnings
+// - Firebase operation specific monitoring
+// - Automatic optimization suggestions
+// - Periodic performance reporting
+//
+// Monitoring Scope:
+// - Component render times
+// - Function execution duration
+// - Firebase operations (queries, updates, subscriptions)
+// - Firestore listener lifecycle
+// - Memory usage patterns
+
 class PerformanceMonitor {
   constructor() {
     this.metrics = new Map();

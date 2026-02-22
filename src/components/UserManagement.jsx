@@ -6,25 +6,59 @@ import {
   isAdmin,
   isAuthenticated
 } from '../services/authService';
+import Form from './Reusable/Form';
+import { ErrorBanner, SuccessBanner } from './Reusable/LoadingComponents';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
-  const [registerData, setRegisterData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    role: 'user'
-  });
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmNewPassword: ''
-  });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Validation rules for forms
+  const registerValidationRules = {
+    email: {
+      required: true,
+      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      patternMessage: 'Please enter a valid email address'
+    },
+    password: {
+      required: true,
+      minLength: 8,
+      minLengthMessage: 'Password must be at least 8 characters long'
+    },
+    confirmPassword: {
+      required: true,
+      custom: (value, formValues) => {
+        if (value !== formValues.password) {
+          return 'Passwords do not match';
+        }
+        return '';
+      }
+    }
+  };
+
+  const passwordValidationRules = {
+    currentPassword: {
+      required: true
+    },
+    newPassword: {
+      required: true,
+      minLength: 8,
+      minLengthMessage: 'New password must be at least 8 characters long'
+    },
+    confirmNewPassword: {
+      required: true,
+      custom: (value, formValues) => {
+        if (value !== formValues.newPassword) {
+          return 'New passwords do not match';
+        }
+        return '';
+      }
+    }
+  };
 
   // Check if user is authenticated and admin
   useEffect(() => {
@@ -34,82 +68,14 @@ const UserManagement = () => {
     }
   }, []);
 
-  const handleRegisterChange = (e) => {
-    const { name, value } = e.target;
-    setRegisterData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleRegisterSubmit = async (formData) => {
     setError('');
     setSuccess('');
-  };
-
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    setError('');
-    setSuccess('');
-  };
-
-  const validateRegisterForm = () => {
-    if (!registerData.email || !registerData.password || !registerData.confirmPassword) {
-      setError('All fields are required');
-      return false;
-    }
-    
-    if (registerData.password !== registerData.confirmPassword) {
-      setError('Passwords do not match');
-      return false;
-    }
-    
-    if (registerData.password.length < 8) {
-      setError('Password must be at least 8 characters long');
-      return false;
-    }
-    
-    return true;
-  };
-
-  const validatePasswordForm = () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmNewPassword) {
-      setError('All fields are required');
-      return false;
-    }
-    
-    if (passwordData.newPassword !== passwordData.confirmNewPassword) {
-      setError('New passwords do not match');
-      return false;
-    }
-    
-    if (passwordData.newPassword.length < 8) {
-      setError('New password must be at least 8 characters long');
-      return false;
-    }
-    
-    return true;
-  };
-
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    
-    if (!validateRegisterForm()) return;
-    
     setLoading(true);
     
     try {
-      await register(registerData.email, registerData.password, registerData.role);
+      await register(formData.email, formData.password, formData.role);
       setSuccess('User registered successfully!');
-      setRegisterData({
-        email: '',
-        password: '',
-        confirmPassword: '',
-        role: 'user'
-      });
       setShowRegisterForm(false);
     } catch (err) {
       setError(err.message);
@@ -118,23 +84,14 @@ const UserManagement = () => {
     }
   };
 
-  const handleChangePasswordSubmit = async (e) => {
-    e.preventDefault();
+  const handleChangePasswordSubmit = async (formData) => {
     setError('');
     setSuccess('');
-    
-    if (!validatePasswordForm()) return;
-    
     setLoading(true);
     
     try {
-      await changePassword(passwordData.currentPassword, passwordData.newPassword);
+      await changePassword(formData.currentPassword, formData.newPassword);
       setSuccess('Password changed successfully!');
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmNewPassword: ''
-      });
       setShowChangePasswordForm(false);
     } catch (err) {
       setError(err.message);
@@ -159,15 +116,18 @@ const UserManagement = () => {
       <h2>User Management</h2>
       
       {error && (
-        <div className="error-banner">
-          {error}
-        </div>
+        <ErrorBanner 
+          message={error} 
+          onClose={() => setError('')}
+        />
       )}
       
       {success && (
-        <div className="success-banner">
-          {success}
-        </div>
+        <SuccessBanner 
+          message={success} 
+          onClose={() => setSuccess('')}
+          autoDismiss={3000}
+        />
       )}
       
       <div className="user-actions">
@@ -189,127 +149,105 @@ const UserManagement = () => {
       {showRegisterForm && (
         <div className="form-section">
           <h3>Register New User</h3>
-          <form onSubmit={handleRegisterSubmit} className="user-form">
-            <div className="form-group">
-              <label htmlFor="email">Email Address:</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={registerData.email}
-                onChange={handleRegisterChange}
-                required
-                disabled={loading}
-              />
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="password">Password:</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={registerData.password}
-                onChange={handleRegisterChange}
-                required
-                disabled={loading}
-                minLength="8"
-              />
-              <small>Password must contain at least 8 characters including uppercase, lowercase, number, and special character</small>
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="confirmPassword">Confirm Password:</label>
-              <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={registerData.confirmPassword}
-                onChange={handleRegisterChange}
-                required
-                disabled={loading}
-              />
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="role">Role:</label>
-              <select
-                id="role"
-                name="role"
-                value={registerData.role}
-                onChange={handleRegisterChange}
-                disabled={loading}
-              >
-                <option value="user">User</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            
-            <button 
-              type="submit" 
-              className="btn btn-submit"
-              disabled={loading}
-            >
-              {loading ? 'Registering...' : 'Register User'}
-            </button>
-          </form>
+          <Form
+            initialValues={{
+              email: '',
+              password: '',
+              confirmPassword: '',
+              role: 'user'
+            }}
+            validationRules={registerValidationRules}
+            onSubmit={handleRegisterSubmit}
+            onCancel={() => setShowRegisterForm(false)}
+            submitText="Register User"
+            cancelText="Cancel"
+            loading={loading}
+            fields={[
+              {
+                name: 'email',
+                label: 'Email Address',
+                type: 'email',
+                required: true,
+                placeholder: 'Enter email address'
+              },
+              {
+                name: 'password',
+                label: 'Password',
+                type: 'password',
+                required: true,
+                placeholder: 'Enter password',
+                inputProps: {
+                  minLength: 8
+                }
+              },
+              {
+                name: 'confirmPassword',
+                label: 'Confirm Password',
+                type: 'password',
+                required: true,
+                placeholder: 'Confirm password'
+              },
+              {
+                name: 'role',
+                label: 'Role',
+                type: 'select',
+                inputProps: {
+                  children: (
+                    <>
+                      <option value="user">User</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </>
+                  )
+                }
+              }
+            ]}
+          />
         </div>
       )}
       
       {showChangePasswordForm && (
         <div className="form-section">
           <h3>Change Password</h3>
-          <form onSubmit={handleChangePasswordSubmit} className="user-form">
-            <div className="form-group">
-              <label htmlFor="currentPassword">Current Password:</label>
-              <input
-                type="password"
-                id="currentPassword"
-                name="currentPassword"
-                value={passwordData.currentPassword}
-                onChange={handlePasswordChange}
-                required
-                disabled={loading}
-              />
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="newPassword">New Password:</label>
-              <input
-                type="password"
-                id="newPassword"
-                name="newPassword"
-                value={passwordData.newPassword}
-                onChange={handlePasswordChange}
-                required
-                disabled={loading}
-                minLength="8"
-              />
-              <small>Password must contain at least 8 characters including uppercase, lowercase, number, and special character</small>
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="confirmNewPassword">Confirm New Password:</label>
-              <input
-                type="password"
-                id="confirmNewPassword"
-                name="confirmNewPassword"
-                value={passwordData.confirmNewPassword}
-                onChange={handlePasswordChange}
-                required
-                disabled={loading}
-              />
-            </div>
-            
-            <button 
-              type="submit" 
-              className="btn btn-submit"
-              disabled={loading}
-            >
-              {loading ? 'Changing...' : 'Change Password'}
-            </button>
-          </form>
+          <Form
+            initialValues={{
+              currentPassword: '',
+              newPassword: '',
+              confirmNewPassword: ''
+            }}
+            validationRules={passwordValidationRules}
+            onSubmit={handleChangePasswordSubmit}
+            onCancel={() => setShowChangePasswordForm(false)}
+            submitText="Change Password"
+            cancelText="Cancel"
+            loading={loading}
+            fields={[
+              {
+                name: 'currentPassword',
+                label: 'Current Password',
+                type: 'password',
+                required: true,
+                placeholder: 'Enter current password'
+              },
+              {
+                name: 'newPassword',
+                label: 'New Password',
+                type: 'password',
+                required: true,
+                placeholder: 'Enter new password',
+                inputProps: {
+                  minLength: 8
+                }
+              },
+              {
+                name: 'confirmNewPassword',
+                label: 'Confirm New Password',
+                type: 'password',
+                required: true,
+                placeholder: 'Confirm new password'
+              }
+            ]}
+          />
         </div>
       )}
       

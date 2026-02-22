@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import NavigationBar from './NavigationBar';
 import TableSection from './TableSection';
-import { 
+import {
   getAllTables,
   subscribeToTables,
   updateTable,
@@ -22,32 +22,33 @@ import {
   getMenuItemsSelective
 } from '../services/firebaseService';
 import { Timestamp } from 'firebase/firestore'; // Add this import for timestamp handling
+import { getPaymentMethods } from '../services/shiftService';
 
 const TablesPage = () => {
   // Helper function to format timestamp
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
-    
+
     // If it's a Firestore Timestamp object
     if (timestamp instanceof Timestamp) {
       return new Date(timestamp.seconds * 1000).toLocaleString();
     }
-    
+
     // If it's already a Date object
     if (timestamp instanceof Date) {
       return timestamp.toLocaleString();
     }
-    
+
     // If it's already a string
     if (typeof timestamp === 'string') {
       return timestamp;
     }
-    
+
     // If it's an object with seconds and nanoseconds (Firestore Timestamp)
     if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
       return new Date(timestamp.seconds * 1000).toLocaleString();
     }
-    
+
     return String(timestamp);
   };
 
@@ -55,7 +56,7 @@ const TablesPage = () => {
   const tablesRef = useRef({});
 
   const [menuItems, setMenuItems] = useState([]); // Add missing state
-  
+
   const [tables, setTables] = useState(() => {
     // Create default tables 1-10
     const defaultTables = {};
@@ -77,14 +78,25 @@ const TablesPage = () => {
   const [initComplete, setInitComplete] = useState(false);
   const [isOnline, setIsOnline] = useState(getConnectionState());
 
+  // Checkout Modal State
+  const [paymentMethods, setPaymentMethods] = useState(['Cash', 'UPI']);
+  const [checkoutModal, setCheckoutModal] = useState({
+    isOpen: false,
+    type: null,
+    targetId: null,
+    targetTableId: null,
+    total: 0,
+    itemsToClear: null
+  });
+
   // Memoize functions to prevent unnecessary re-renders
   const addOrderToTable = useCallback(async (tableId) => {
     const table = tablesRef.current[tableId];
     if (!table) return;
 
     // Generate new order ID based on current order count
-    const newOrderId = table.orders.length > 0 
-      ? Math.max(...table.orders.map(order => order.id)) + 1 
+    const newOrderId = table.orders.length > 0
+      ? Math.max(...table.orders.map(order => order.id)) + 1
       : 1;
     const newOrder = {
       id: newOrderId,
@@ -202,35 +214,34 @@ const TablesPage = () => {
 
     // Save to history if the order has items
     if (orderToClear && orderToClear.total > 0) {
-      const historyEntry = {
-        tableId,
-        orders: [orderToClear], // Save just this order
+      setCheckoutModal({
+        isOpen: true,
+        type: 'order',
+        targetId: orderId,
+        targetTableId: tableId,
         total: orderToClear.total,
-        timestamp: new Date().toLocaleString() // Use properly formatted timestamp
+        itemsToClear: { orderToClear, table }
+      });
+    } else {
+      const updatedOrders = table.orders.map(order => {
+        if (order.id === orderId) {
+          return {
+            ...order,
+            items: [],
+            total: 0
+          };
+        }
+        return order;
+      });
+
+      const updatedTable = {
+        ...table,
+        orders: updatedOrders,
+        total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
       };
 
-      console.log('Saving order to history:', historyEntry);
-      await addHistoryFirebase(historyEntry);
+      await updateTable(tableId, updatedTable);
     }
-
-    const updatedOrders = table.orders.map(order => {
-      if (order.id === orderId) {
-        return {
-          ...order,
-          items: [],
-          total: 0
-        };
-      }
-      return order;
-    });
-
-    const updatedTable = {
-      ...table,
-      orders: updatedOrders,
-      total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
-    };
-
-    await updateTable(tableId, updatedTable);
   }, []);
 
   const removeOrder = useCallback(async (tableId, orderId) => {
@@ -269,30 +280,16 @@ const TablesPage = () => {
       return;
     }
 
-    console.log('Saving history for table:', tableId, 'with orders:', table.orders);
-    
-    // Save to history using batch operation for better performance
-    const historyEntry = {
-      id: Date.now().toString(), // Add unique ID for React key
-      tableId,
-      orders: table.orders,
+    console.log('Initiating checkout for table:', tableId, 'with orders:', table.orders);
+
+    setCheckoutModal({
+      isOpen: true,
+      type: 'table',
+      targetId: tableId,
+      targetTableId: tableId,
       total: table.total,
-      timestamp: new Date().toLocaleString() // Use properly formatted timestamp
-    };
-
-    console.log('History entry to save:', historyEntry);
-
-    // Use batch operation if multiple entries need to be saved
-    await addHistoryFirebase(historyEntry);
-
-    // Reset table
-    const updatedTable = {
-      ...table,
-      orders: [],
-      total: 0
-    };
-
-    await updateTable(tableId, updatedTable);
+      itemsToClear: { table }
+    });
   }, []);
 
   const addNewTable = useCallback(async () => {
@@ -431,6 +428,10 @@ const TablesPage = () => {
           tablesRef.current = updatedTables; // Keep ref in sync
         });
 
+        // Load POS payment methods
+        const methods = await getPaymentMethods();
+        if (methods) setPaymentMethods(methods);
+
         // Load history from Firebase
         try {
           const firebaseHistory = await getAllHistory();
@@ -439,7 +440,7 @@ const TablesPage = () => {
         } catch (error) {
           console.error('Error loading initial history:', error);
         }
-        
+
         // Subscribe to real-time history updates
         historyUnsubscribe = subscribeToHistory((updatedHistory) => {
           console.log('History updated:', updatedHistory);
@@ -453,7 +454,7 @@ const TablesPage = () => {
             const availableItems = updatedMenuItems
               .filter(item => item.available !== false)
               .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-            
+
             setMenuItems(availableItems);
           } catch (error) {
             console.error('Error processing menu items update:', error);
@@ -484,29 +485,59 @@ const TablesPage = () => {
     setShowHistory(!showHistory);
   }, [showHistory]);
 
-  // Show connection status indicator
-  const ConnectionIndicator = () => (
-    <div style={{
-      position: 'fixed',
-      top: '10px',
-      right: '10px',
-      padding: '8px 12px',
-      borderRadius: '4px',
-      fontSize: '14px',
-      fontWeight: 'bold',
-      zIndex: 1000,
-      backgroundColor: isOnline ? '#4CAF50' : '#f44336',
-      color: 'white',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-    }}>
-      {isOnline ? 'ONLINE' : 'OFFLINE'}
-    </div>
-  );
+  const handleCheckoutSubmit = async (paymentMethod) => {
+    const { type, targetId, targetTableId, itemsToClear } = checkoutModal;
+
+    if (type === 'order') {
+      const { orderToClear, table } = itemsToClear;
+      const historyEntry = {
+        tableId: targetTableId,
+        orders: [orderToClear],
+        total: orderToClear.total,
+        paymentMethod,
+        timestamp: new Date().toLocaleString()
+      };
+      await addHistoryFirebase(historyEntry);
+
+      const updatedOrders = table.orders.map(order =>
+        (order.id === targetId) ? { ...order, items: [], total: 0 } : order
+      );
+
+      const updatedTable = {
+        ...table,
+        orders: updatedOrders,
+        total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+      };
+
+      await updateTable(targetTableId, updatedTable);
+    } else if (type === 'table') {
+      const { table } = itemsToClear;
+      const historyEntry = {
+        id: Date.now().toString(),
+        tableId: targetId,
+        orders: table.orders,
+        total: table.total,
+        paymentMethod,
+        timestamp: new Date().toLocaleString()
+      };
+
+      await addHistoryFirebase(historyEntry);
+
+      const updatedTable = {
+        ...table,
+        orders: [],
+        total: 0
+      };
+
+      await updateTable(targetId, updatedTable);
+    }
+
+    setCheckoutModal({ isOpen: false, type: null, targetId: null, targetTableId: null, total: 0, itemsToClear: null });
+  };
 
   return (
     <div className="tables-page">
       <NavigationBar currentPage="tables" />
-      <ConnectionIndicator />
       {loading || !initComplete ? (
         <div className="page-content" style={{ textAlign: 'center', padding: '2rem' }}>
           <div className="loading-spinner"></div>
@@ -514,7 +545,7 @@ const TablesPage = () => {
         </div>
       ) : (
         <div className="page-content">
-          <TableSection 
+          <TableSection
             tables={tables}
             currentTable={currentTable}
             setCurrentTable={setCurrentTable}
@@ -528,13 +559,13 @@ const TablesPage = () => {
             addNewTable={addNewTable}
             deleteTable={deleteTable}
           />
-          
+
           {/* Collapsible History Section */}
           <div className="history-section">
             <div className="history-header">
               <div className="history-toggle">
-                <button 
-                  className="history-toggle-btn" 
+                <button
+                  className="history-toggle-btn"
                   onClick={(e) => {
                     console.log('History button clicked');
                     e.stopPropagation();
@@ -550,7 +581,7 @@ const TablesPage = () => {
                 )}
               </div>
             </div>
-            
+
             {showHistory && (
               <div className="history-content">
                 {history.length === 0 ? (
@@ -568,15 +599,15 @@ const TablesPage = () => {
                             <span className="total-amount">₹{entry.total}</span>
                           </div>
                           <div className="history-actions">
-                            <button 
-                              className="restore-btn" 
+                            <button
+                              className="restore-btn"
                               onClick={() => restoreOrder(entry)}
                             >
                               Restore
                             </button>
                           </div>
                         </div>
-                        
+
                         <div className="history-orders">
                           {entry.orders.map((order, orderIndex) => (
                             <div key={`${entry.id}-${orderIndex}`} className="history-order">
@@ -603,6 +634,43 @@ const TablesPage = () => {
           </div>
         </div>
       )}
+
+      {/* Checkout Modal */}
+      {checkoutModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Checkout Summary</h3>
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '1.1rem', color: '#666' }}>Total Amount</div>
+              <div className="total-amount" style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+                ₹{checkoutModal.total.toFixed(2)}
+              </div>
+            </div>
+
+            <h4 style={{ textAlign: 'center', color: '#666', marginBottom: '1rem' }}>Select Payment Method</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              {paymentMethods.map(method => (
+                <button
+                  key={method}
+                  onClick={() => handleCheckoutSubmit(method)}
+                  className="primary-btn"
+                  style={method === 'Cash' ? { background: 'linear-gradient(135deg, #28a745, #218838)' } : {}}
+                >
+                  {method}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setCheckoutModal({ isOpen: false, type: null, targetId: null, targetTableId: null, total: 0, itemsToClear: null })}
+              className="secondary-btn"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

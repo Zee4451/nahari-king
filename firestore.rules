@@ -51,6 +51,14 @@ service cloud.firestore {
       allow read, write: if isAdmin(request.auth.uid);
     }
     
+    // Recipes collection - allow authenticated users to read recipes for BOM calculations
+    match /recipes/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (hasPermission(request.auth.uid, 'settings_access') ||
+         hasPermission(request.auth.uid, 'menu_management'));
+    }
+    
     // Inventory-related collections - authenticated users with proper permissions
     match /inventory_items/{document} {
       allow read: if request.auth != null;
@@ -78,6 +86,17 @@ service cloud.firestore {
       allow write: if request.auth != null && 
         (hasPermission(request.auth.uid, 'settings_access') ||
          hasPermission(request.auth.uid, 'menu_management'));
+    }
+    
+    // Analytics & Metrics
+    match /daily_metrics/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // Broadened slightly because regular staff triggers usage/waste leading to metrics increments
+    }
+    
+    // Shift Management
+    match /shifts/{document} {
+      allow read, write: if request.auth != null;
     }
     
     // Default deny for any other collections

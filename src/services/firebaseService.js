@@ -1,11 +1,30 @@
+// Firebase Service Layer
+// ================================================
+// Core service layer for Firebase Firestore operations
+// Provides comprehensive data management for the restaurant management system
+//
+// Key Features:
+// - Real-time data synchronization with Firestore
+// - Performance monitoring and optimization
+// - Data caching with time-based expiration
+// - Batch operations for improved efficiency
+// - Error handling and retry mechanisms
+// - Type-safe data operations
+//
+// Architecture Notes:
+// - Uses Firestore as the primary database
+// - Implements caching layer to reduce Firebase reads
+// - Leverages real-time listeners for instant UI updates
+// - Includes performance monitoring for optimization insights
+
 import { db } from '../firebase';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   query,
@@ -15,38 +34,58 @@ import {
   serverTimestamp,
   Timestamp,
   limit,
-  startAfter
+  startAfter,
+  increment
 } from 'firebase/firestore';
+
+// Helper for local date keys
+export const getLocalDateString = (d = new Date()) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 // Import performance monitoring utilities
 import { monitorFirebaseOperation, monitorFirestoreListener } from '../utils/performanceMonitor';
+import { getCurrentShift } from './shiftService';
 
 // Collection references
 const tablesCollection = collection(db, 'tables');
 const historyCollection = collection(db, 'history');
 const menuItemsCollection = collection(db, 'menuItems');
 
-// Inventory collection references
-const inventoryItemsCollection = collection(db, 'inventory_items');
-const purchaseRecordsCollection = collection(db, 'purchase_records');
-const usageLogsCollection = collection(db, 'usage_logs');
-const wasteEntriesCollection = collection(db, 'waste_entries');
 
-// Cache implementation for better performance
+
+// Caching Layer
+// ================================================
+// Implements in-memory caching to reduce Firebase read operations
+// and improve application performance
+//
+// Cache Configuration:
+// - Duration: 3 minutes (180,000ms) for optimal balance
+// - Storage: In-memory Map for fast access
+// - Expiration: Time-based invalidation
+// - Statistics: Hit/miss tracking for performance monitoring
+
 const cache = new Map();
-const CACHE_TTL = 180000; // Increase to 3 minutes cache TTL for better hit rate
+const CACHE_TTL = 180000; // 3 minutes cache TTL for better hit rate
 
-// Cache statistics
+// Cache performance statistics
 const cacheStats = {
-  hits: 0,
-  misses: 0,
-  sets: 0
+  hits: 0,    // Number of successful cache retrievals
+  misses: 0,  // Number of cache misses (expired/missing)
+  sets: 0     // Number of cache writes
 };
 
-// Pending operations to prevent duplicate requests
+// Pending operations tracking to prevent duplicate requests
 const pendingOperations = new Map();
 
-// Cache helper functions
+/**
+ * Retrieve cached data if it exists and is still valid
+ * @param {string} key - Cache key
+ * @returns {any|null} Cached data or null if not found/expired
+ */
 const getCached = (key) => {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -60,6 +99,11 @@ const getCached = (key) => {
   return null;
 };
 
+/**
+ * Store data in cache with timestamp
+ * @param {string} key - Cache key
+ * @param {any} data - Data to cache
+ */
 const setCached = (key, data) => {
   cacheStats.sets++;
   cache.set(key, {
@@ -68,14 +112,28 @@ const setCached = (key, data) => {
   });
 };
 
-// Debounce helper for preventing excessive Firebase calls
+// Debounce Helper
+// ================================================
+// Prevents excessive Firebase calls by debouncing rapid operations
+// Ensures only the latest operation executes after a delay period
+//
+// Use Cases:
+// - Prevent duplicate rapid updates
+// - Reduce unnecessary Firestore writes
+// - Improve performance during rapid user interactions
+//
+// @param {string} operationKey - Unique identifier for the operation
+// @param {Function} operationFn - Async function to execute
+// @param {number} delay - Delay in milliseconds (default: 100ms)
+// @returns {Promise} Resolves with operation result
+
 const debounceOperation = (operationKey, operationFn, delay = 100) => {
   return new Promise((resolve, reject) => {
     // Clear any pending timeout for this operation
     if (pendingOperations.has(operationKey)) {
       clearTimeout(pendingOperations.get(operationKey));
     }
-    
+
     // Store the latest operation to apply when timeout completes
     const timeoutId = setTimeout(async () => {
       try {
@@ -87,7 +145,7 @@ const debounceOperation = (operationKey, operationFn, delay = 100) => {
         pendingOperations.delete(operationKey);
       }
     }, delay);
-    
+
     pendingOperations.set(operationKey, timeoutId);
   });
 };
@@ -135,7 +193,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     updateConnectionState(true);
   });
-  
+
   window.addEventListener('offline', () => {
     updateConnectionState(false);
   });
@@ -161,16 +219,16 @@ export const getAllTables = async () => {
     if (cachedData && isOnline) {
       return cachedData;
     }
-    
+
     return await monitorFirebaseOperation('getAllTables', async () => {
       // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Firebase timeout')), 60000)
       );
-      
+
       const firebasePromise = getDocs(tablesCollection);
       const tablesSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
-      
+
       const tables = {};
       tablesSnapshot.forEach((doc) => {
         // Only include necessary fields to reduce payload
@@ -182,7 +240,7 @@ export const getAllTables = async () => {
           timestamp: data.timestamp
         };
       });
-      
+
       // Cache the result
       setCached('tables', tables);
       return tables;
@@ -202,7 +260,7 @@ export const subscribeToTables = (callback) => {
     });
     callback(tables);
   });
-  
+
   // Return wrapped unsubscribe for performance monitoring
   return monitorFirestoreListener('tables_subscription', unsubscribe);
 };
@@ -215,10 +273,10 @@ export const getTable = async (tableId) => {
       console.error('Invalid tableId:', tableId);
       return null;
     }
-    
+
     // Convert to string if it's a number
     const stringTableId = String(tableId);
-    
+
     return await monitorFirebaseOperation('getTable', async () => {
       const tableDoc = await getDoc(doc(tablesCollection, stringTableId));
       return tableDoc.exists() ? tableDoc.data() : null;
@@ -237,49 +295,49 @@ export const updateTable = async (tableId, tableData) => {
       console.warn('Device is offline, cannot update table');
       return;
     }
-    
+
     // Validate tableId is a string
     if (typeof tableId !== 'string' && typeof tableId !== 'number') {
       console.error('Invalid tableId:', tableId);
       return;
     }
-    
+
     // Convert to string if it's a number
     const stringTableId = String(tableId);
-    
+
     // Validate tableData is an object
     if (typeof tableData !== 'object' || tableData === null) {
       console.error('Invalid tableData:', tableData);
       return;
     }
-    
+
     // Debounce rapid updates to prevent excessive Firebase calls
     if (!updateTable._pendingUpdates) {
       updateTable._pendingUpdates = {};
     }
-    
+
     // Clear any pending timeout for this table
     if (updateTable._pendingUpdates[stringTableId]) {
       clearTimeout(updateTable._pendingUpdates[stringTableId]);
     }
-    
+
     // Store the latest data to apply when timeout completes
     updateTable._pendingUpdates[stringTableId] = tableData;
-    
+
     // Create a small delay to debounce rapid updates
     await new Promise(resolve => {
       updateTable._pendingUpdates[stringTableId] = setTimeout(async () => {
         try {
           // Clear relevant cache entries
           clearCache('tables');
-          
+
           // Monitor the operation
           await monitorFirebaseOperation('updateTable', async () => {
             // Add timeout to prevent hanging
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Firebase timeout')), 60000)
             );
-            
+
             const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData);
             await Promise.race([firebasePromise, timeoutPromise]);
           });
@@ -288,6 +346,7 @@ export const updateTable = async (tableId, tableData) => {
         } finally {
           // Clean up the pending update reference
           delete updateTable._pendingUpdates[stringTableId];
+          resolve();
         }
       }, 50); // 50ms debounce period
     });
@@ -304,10 +363,10 @@ export const deleteTable = async (tableId) => {
       console.error('Invalid tableId:', tableId);
       return;
     }
-    
+
     // Convert to string if it's a number
     const stringTableId = String(tableId);
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('deleteTable', async () => {
       await deleteDoc(doc(tablesCollection, stringTableId));
@@ -340,9 +399,9 @@ export const getAllHistory = async () => {
 export const subscribeToHistory = (callback) => {
   if (typeof callback !== 'function') {
     console.error('Callback must be a function');
-    return () => {};
+    return () => { };
   }
-  
+
   const unsubscribe = onSnapshot(
     query(historyCollection, orderBy('timestamp', 'desc')),
     (snapshot) => {
@@ -353,7 +412,7 @@ export const subscribeToHistory = (callback) => {
       callback(history);
     }
   );
-  
+
   // Return wrapped unsubscribe for performance monitoring
   return monitorFirestoreListener('history_subscription', unsubscribe);
 };
@@ -362,23 +421,103 @@ export const subscribeToHistory = (callback) => {
 export const addHistory = async (historyEntry) => {
   try {
     console.log('Adding history entry:', historyEntry);
-    
+
     // Validate historyEntry is an object
     if (typeof historyEntry !== 'object' || historyEntry === null) {
       console.error('Invalid historyEntry:', historyEntry);
       return false;
     }
-    
+
     const historyId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('addHistory', async () => {
-      await setDoc(doc(historyCollection, historyId), {
+      const batch = writeBatch(db);
+
+      const currentShift = await getCurrentShift();
+      const shiftId = currentShift ? currentShift.id : null;
+      const paymentMethod = historyEntry.paymentMethod || 'Cash';
+
+      batch.set(doc(historyCollection, historyId), {
         ...historyEntry,
+        paymentMethod,
+        shiftId,
         timestamp: serverTimestamp()
       });
+
+      // --- CLIENT SIDE AGGREGATION MVP ---
+      const dateStr = getLocalDateString();
+      const dailyRef = doc(db, 'daily_metrics', dateStr);
+
+      const revenue = Number(historyEntry.total) || 0;
+      let ordersCount = 0;
+      const itemsList = [];
+      const extractItems = (obj) => {
+        if (!obj) return;
+        if (Array.isArray(obj)) {
+          obj.forEach(extractItems);
+        } else if (typeof obj === 'object') {
+          if (obj.name && (obj.price !== undefined || obj.quantity !== undefined)) {
+            itemsList.push(obj);
+          } else {
+            Object.values(obj).forEach(extractItems);
+          }
+        }
+      };
+
+      extractItems(historyEntry);
+
+      if (Array.isArray(historyEntry.orders)) {
+        ordersCount = historyEntry.orders.length;
+      } else if (itemsList.length > 0) {
+        ordersCount = 1;
+      }
+
+      const dineInTables = historyEntry.tableId ? 1 : 0;
+
+      const updates = {
+        date: dateStr,
+        totalSales: increment(revenue),
+        totalOrders: increment(ordersCount),
+        dineInTables: increment(dineInTables),
+        lastUpdated: serverTimestamp()
+      };
+
+      for (const item of itemsList) {
+        if (!item.name) continue;
+        const safeName = item.name.replace(/[^a-zA-Z0-9]/g, "_");
+        const qty = Number(item.quantity) || 1;
+        const itemRevenue = (Number(item.price) || 0) * qty;
+
+        updates[`itemSales.${safeName}.name`] = item.name;
+        updates[`itemSales.${safeName}.qty`] = increment(qty);
+        updates[`itemSales.${safeName}.revenue`] = increment(itemRevenue);
+      }
+
+      batch.set(dailyRef, updates, { merge: true });
+
+      // --- SHIFT TRACKING ---
+      if (shiftId) {
+        const shiftRef = doc(db, 'shifts', shiftId);
+        const ctUpdates = {
+          totalRevenue: increment(revenue)
+        };
+        if (paymentMethod === 'Cash') {
+          ctUpdates.cashSales = increment(revenue);
+          ctUpdates.expectedCash = increment(revenue);
+        } else {
+          ctUpdates.upiSales = increment(revenue);
+          const breakdown = {};
+          breakdown[paymentMethod] = increment(revenue);
+          ctUpdates.paymentMethodBreakdown = breakdown;
+        }
+        batch.set(shiftRef, { calculatedTotals: ctUpdates }, { merge: true });
+      }
+
+      await batch.commit();
+      // -----------------------------------
     });
-    
+
     console.log('History entry added successfully with ID:', historyId);
     return true;
   } catch (error) {
@@ -395,10 +534,10 @@ export const batchUpdateTables = async (tablesUpdates) => {
       console.error('Invalid tablesUpdates array:', tablesUpdates);
       return false;
     }
-    
+
     return await monitorFirebaseOperation('batchUpdateTables', async () => {
       const batch = writeBatch(db);
-      
+
       tablesUpdates.forEach(({ tableId, tableData }) => {
         if (tableId && tableData) {
           const stringTableId = String(tableId);
@@ -406,12 +545,12 @@ export const batchUpdateTables = async (tablesUpdates) => {
           batch.set(docRef, tableData);
         }
       });
-      
+
       await batch.commit();
-      
+
       // Clear cache after batch update
       clearCache('tables');
-      
+
       return true;
     });
   } catch (error) {
@@ -428,21 +567,136 @@ export const batchAddHistory = async (historyEntries) => {
       console.error('Invalid historyEntries array:', historyEntries);
       return false;
     }
-    
+
     return await monitorFirebaseOperation('batchAddHistory', async () => {
       const batch = writeBatch(db);
-      
+
+      const currentShift = await getCurrentShift();
+      const shiftId = currentShift ? currentShift.id : null;
+
+      const dateStr = getLocalDateString();
+      const dailyRef = doc(db, 'daily_metrics', dateStr);
+      const dailyUpdates = {
+        date: dateStr,
+        totalSales: increment(0),
+        totalOrders: increment(0),
+        dineInTables: increment(0),
+        lastUpdated: serverTimestamp()
+      };
+
+      let hasMetricsToUpdate = false;
+      const shiftTotals = { totalRevenue: 0, cashSales: 0, upiSales: 0, breakdown: {} };
+
       historyEntries.forEach((entry) => {
         if (entry) {
+          const paymentMethod = entry.paymentMethod || 'Cash';
           const historyId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
           const docRef = doc(historyCollection, historyId);
           batch.set(docRef, {
             ...entry,
+            paymentMethod,
+            shiftId,
             timestamp: serverTimestamp()
           });
+
+          // Aggregate metrics for batch
+          hasMetricsToUpdate = true;
+          const revenue = Number(entry.total) || 0;
+
+          shiftTotals.totalRevenue += revenue;
+          if (paymentMethod === 'Cash') {
+            shiftTotals.cashSales += revenue;
+          } else {
+            shiftTotals.upiSales += revenue;
+            if (!shiftTotals.breakdown[paymentMethod]) shiftTotals.breakdown[paymentMethod] = 0;
+            shiftTotals.breakdown[paymentMethod] += revenue;
+          }
+
+          // Replace increment(0) with actual values if we could, but since increment() is a FieldTransform, 
+          // we can't easily sum them in memory unless we keep a JS running total. Let's build a JS memory total first.
         }
       });
-      
+
+      // Better approach: Calculate JS memory totals for the entire batch first, then issue ONE increment
+      const batchTotals = { sales: 0, orders: 0, tables: 0, items: {} };
+      historyEntries.forEach(entry => {
+        if (!entry) return;
+        batchTotals.sales += (Number(entry.total) || 0);
+
+        let ordersCount = 0;
+        const itemsList = [];
+        const extractItems = (obj) => {
+          if (!obj) return;
+          if (Array.isArray(obj)) {
+            obj.forEach(extractItems);
+          } else if (typeof obj === 'object') {
+            if (obj.name && (obj.price !== undefined || obj.quantity !== undefined)) {
+              itemsList.push(obj);
+            } else {
+              Object.values(obj).forEach(extractItems);
+            }
+          }
+        };
+
+        extractItems(entry);
+
+        if (Array.isArray(entry.orders)) {
+          ordersCount = entry.orders.length;
+        } else if (itemsList.length > 0) {
+          ordersCount = 1;
+        }
+
+        batchTotals.orders += ordersCount;
+        batchTotals.tables += entry.tableId ? 1 : 0;
+
+        for (const item of itemsList) {
+          if (!item.name) continue;
+          const safeName = item.name.toString().replace(/[^a-zA-Z0-9]/g, "_");
+          const qty = Number(item.quantity) || 1;
+          const itemRev = (Number(item.price) || 0) * qty;
+
+          if (!batchTotals.items[safeName]) batchTotals.items[safeName] = { name: item.name, qty: 0, rev: 0 };
+          batchTotals.items[safeName].qty += qty;
+          batchTotals.items[safeName].rev += itemRev;
+        }
+      });
+
+      if (hasMetricsToUpdate) {
+        dailyUpdates.totalSales = increment(batchTotals.sales);
+        dailyUpdates.totalOrders = increment(batchTotals.orders);
+        dailyUpdates.dineInTables = increment(batchTotals.tables);
+
+        Object.keys(batchTotals.items).forEach(safeName => {
+          const item = batchTotals.items[safeName];
+          dailyUpdates[`itemSales.${safeName}.name`] = item.name;
+          dailyUpdates[`itemSales.${safeName}.qty`] = increment(item.qty);
+          dailyUpdates[`itemSales.${safeName}.revenue`] = increment(item.rev);
+        });
+
+        batch.set(dailyRef, dailyUpdates, { merge: true });
+      }
+
+      // --- SHIFT TRACKING ---
+      if (shiftId && shiftTotals.totalRevenue > 0) {
+        const shiftRef = doc(db, 'shifts', shiftId);
+        const ctUpdates = {
+          totalRevenue: increment(shiftTotals.totalRevenue),
+          cashSales: increment(shiftTotals.cashSales),
+          expectedCash: increment(shiftTotals.cashSales),
+          upiSales: increment(shiftTotals.upiSales)
+        };
+
+        if (Object.keys(shiftTotals.breakdown).length > 0) {
+          const breakdown = {};
+          Object.entries(shiftTotals.breakdown).forEach(([method, amt]) => {
+            breakdown[method] = increment(amt);
+          });
+          ctUpdates.paymentMethodBreakdown = breakdown;
+        }
+
+        batch.set(shiftRef, { calculatedTotals: ctUpdates }, { merge: true });
+      }
+
       await batch.commit();
       return true;
     });
@@ -458,31 +712,31 @@ export const getTablesByIds = async (tableIds) => {
     if (!Array.isArray(tableIds) || tableIds.length === 0) {
       return {};
     }
-    
+
     // Check cache first
     const cacheKey = `tables_${tableIds.sort().join('_')}`;
     const cachedData = getCached(cacheKey);
     if (cachedData && isOnline) {
       return cachedData;
     }
-    
+
     return await monitorFirebaseOperation('getTablesByIds', async () => {
       const tables = {};
-      
+
       // Process in batches to avoid hitting limits
       const batchSize = 10;
       for (let i = 0; i < tableIds.length; i += batchSize) {
         const batchIds = tableIds.slice(i, i + batchSize);
         const promises = batchIds.map(id => getDoc(doc(tablesCollection, String(id))));
         const docs = await Promise.all(promises);
-        
+
         docs.forEach((docSnap, index) => {
           if (docSnap.exists()) {
             tables[batchIds[index]] = docSnap.data();
           }
         });
       }
-      
+
       // Cache the result
       setCached(cacheKey, tables);
       return tables;
@@ -499,10 +753,10 @@ export const deleteHistory = async (historyId) => {
       console.error('Invalid historyId:', historyId);
       return;
     }
-    
+
     // Convert to string if it's a number
     const stringHistoryId = String(historyId);
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('deleteHistory', async () => {
       await deleteDoc(doc(historyCollection, stringHistoryId));
@@ -535,22 +789,22 @@ export const getAllMenuItems = async () => {
     if (cachedData && isOnline) {
       return cachedData;
     }
-    
+
     return await monitorFirebaseOperation('getAllMenuItems', async () => {
       // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Firebase timeout')), 30000)
       );
-      
+
       const firebasePromise = getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
       const menuItemsSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
-      
+
       const menuItems = [];
       menuItemsSnapshot.forEach((doc) => {
         // Only include necessary fields to reduce payload
         const data = doc.data();
-        menuItems.push({ 
-          id: doc.id, 
+        menuItems.push({
+          id: doc.id,
           name: data.name || '',
           price: typeof data.price === 'number' ? data.price : 0,
           available: data.available !== undefined ? data.available : true,
@@ -558,7 +812,7 @@ export const getAllMenuItems = async () => {
           category: data.category || ''
         });
       });
-      
+
       // Cache the result
       setCached('menuItems', menuItems);
       return menuItems;
@@ -573,9 +827,9 @@ export const getAllMenuItems = async () => {
 export const subscribeToMenuItems = (callback) => {
   if (typeof callback !== 'function') {
     console.error('Callback must be a function');
-    return () => {};
+    return () => { };
   }
-  
+
   const unsubscribe = onSnapshot(
     query(menuItemsCollection, orderBy('sequence', 'asc')),
     (snapshot) => {
@@ -589,7 +843,7 @@ export const subscribeToMenuItems = (callback) => {
       console.error('Error subscribing to menu items:', error);
     }
   );
-  
+
   // Return wrapped unsubscribe for performance monitoring
   return monitorFirestoreListener('menuItems_subscription', unsubscribe);
 };
@@ -602,9 +856,9 @@ export const addMenuItem = async (menuItemData) => {
       console.error('Invalid menuItemData:', menuItemData);
       return null;
     }
-    
+
     const menuItemId = menuItemData.id || Date.now().toString();
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('addMenuItem', async () => {
       await setDoc(doc(menuItemsCollection, menuItemId), {
@@ -614,7 +868,7 @@ export const addMenuItem = async (menuItemData) => {
         updatedAt: serverTimestamp()
       });
     });
-    
+
     return menuItemId;
   } catch (error) {
     console.error('Error adding menu item:', error);
@@ -626,30 +880,30 @@ export const addMenuItem = async (menuItemData) => {
 export const updateMenuItem = async (menuItemId, menuItemData, currentVersion = 0) => {
   try {
     console.log('updateMenuItem called with:', { menuItemId, menuItemData, currentVersion });
-    
+
     // Validate menuItemId is a string
     if (typeof menuItemId !== 'string' && typeof menuItemId !== 'number') {
       console.error('Invalid menuItemId:', menuItemId);
       return false;
     }
-    
+
     // Convert to string if it's a number
     const stringMenuItemId = String(menuItemId);
     console.log('Using document ID:', stringMenuItemId);
-    
+
     // Validate menuItemData is an object
     if (typeof menuItemData !== 'object' || menuItemData === null) {
       console.error('Invalid menuItemData:', menuItemData);
       return false;
     }
-    
+
     // Log the data being sent
     console.log('Updating with data:', {
       ...menuItemData,
       version: currentVersion + 1,
       updatedAt: 'serverTimestamp()'
     });
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('updateMenuItem', async () => {
       await updateDoc(doc(menuItemsCollection, stringMenuItemId), {
@@ -658,7 +912,7 @@ export const updateMenuItem = async (menuItemId, menuItemData, currentVersion = 
         updatedAt: serverTimestamp()
       });
     });
-    
+
     console.log('Update successful for item:', menuItemId);
     return true; // Return success
   } catch (error) {
@@ -682,15 +936,15 @@ export const deleteMenuItem = async (menuItemId) => {
       console.error('Invalid menuItemId:', menuItemId);
       return false;
     }
-    
+
     // Convert to string if it's a number
     const stringMenuItemId = String(menuItemId);
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('deleteMenuItem', async () => {
       await deleteDoc(doc(menuItemsCollection, stringMenuItemId));
     });
-    
+
     return true; // Return success
   } catch (error) {
     console.error('Error deleting menu item:', error);
@@ -706,19 +960,19 @@ export const updateMenuItemSequence = async (menuItemId, sequence, currentVersio
       console.error('Invalid menuItemId:', menuItemId);
       return;
     }
-    
+
     // Convert to string if it's a number
     const stringMenuItemId = String(menuItemId);
-    
+
     // Validate sequence is a number
     if (typeof sequence !== 'number') {
       console.error('Invalid sequence:', sequence);
       return;
     }
-    
+
     // Monitor the operation
     await monitorFirebaseOperation('updateMenuItemSequence', async () => {
-      await updateDoc(doc(menuItemsCollection, stringMenuItemId), { 
+      await updateDoc(doc(menuItemsCollection, stringMenuItemId), {
         sequence,
         version: currentVersion + 1,
         updatedAt: serverTimestamp()
@@ -737,10 +991,10 @@ export const bulkUpdateMenuItems = async (menuItems) => {
       console.error('Invalid menuItems array:', menuItems);
       throw new Error('Invalid menuItems array');
     }
-    
+
     // Create a batch write operation
     const batch = writeBatch(db);
-    
+
     // Add all updates to the batch
     menuItems.forEach(item => {
       if (item.id) {
@@ -755,7 +1009,7 @@ export const bulkUpdateMenuItems = async (menuItems) => {
         });
       }
     });
-    
+
     // Commit all updates atomically
     await batch.commit();
   } catch (error) {
@@ -772,22 +1026,22 @@ export const toggleMenuItemAvailability = async (menuItemId, currentAvailability
       console.error('Invalid menuItemId:', menuItemId);
       return false;
     }
-    
+
     // Convert to string if it's a number
     const stringMenuItemId = String(menuItemId);
-    
+
     // Validate currentAvailability is a boolean
     if (typeof currentAvailability !== 'boolean') {
       console.error('Invalid currentAvailability:', currentAvailability);
       return false;
     }
-    
-    await updateDoc(doc(menuItemsCollection, stringMenuItemId), { 
+
+    await updateDoc(doc(menuItemsCollection, stringMenuItemId), {
       available: !currentAvailability,
       version: currentVersion + 1,
       updatedAt: serverTimestamp()
     });
-    
+
     return true; // Return success
   } catch (error) {
     console.error('Error toggling menu item availability:', error);
@@ -803,43 +1057,43 @@ export const updateMenuItemWithVersion = async (menuItemId, menuItemData, expect
       console.error('Invalid menuItemId:', menuItemId);
       return false;
     }
-    
+
     if (typeof menuItemData !== 'object' || menuItemData === null) {
       console.error('Invalid menuItemData:', menuItemData);
       return false;
     }
-    
+
     if (typeof expectedVersion !== 'number') {
       console.error('Invalid expectedVersion:', expectedVersion);
       return false;
     }
-    
+
     const stringMenuItemId = String(menuItemId);
-    
+
     // First, get current document to check version
     const docRef = doc(menuItemsCollection, stringMenuItemId);
     const docSnap = await getDoc(docRef);
-    
+
     if (!docSnap.exists()) {
       console.error('Document does not exist:', menuItemId);
       return false;
     }
-    
+
     const currentData = docSnap.data();
-    
+
     // Check for version conflict
     if (currentData.version !== expectedVersion) {
       console.warn(`Version conflict for item ${menuItemId}: expected ${expectedVersion}, found ${currentData.version}`);
       return false;
     }
-    
+
     // Update with incremented version
     await updateDoc(docRef, {
       ...menuItemData,
       version: expectedVersion + 1,
       updatedAt: serverTimestamp()
     });
-    
+
     return true;
   } catch (error) {
     console.error('Error updating menu item with version check:', error);
@@ -850,29 +1104,29 @@ export const updateMenuItemWithVersion = async (menuItemId, menuItemData, expect
 // Retry mechanism with exponential backoff for conflict resolution
 export const retryWithBackoff = async (operation, maxRetries = 3, baseDelay = 100) => {
   let lastError;
-  
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
-      
+
       // If it's not a retryable error, throw immediately
       if (!error.message?.includes('conflict') && !error.message?.includes('version')) {
         throw error;
       }
-      
+
       // If we've exhausted retries, throw the last error
       if (attempt === maxRetries) {
         throw lastError;
       }
-      
+
       // Exponential backoff with jitter
       const delay = Math.min(baseDelay * Math.pow(2, attempt), 1000) + Math.random() * 100;
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  
+
   throw lastError;
 };
 
@@ -883,7 +1137,7 @@ export const getPagedTables = async (lastDoc = null, pageSize = 10) => {
     if (lastDoc) {
       q = query(q, startAfter(lastDoc));
     }
-    
+
     const tablesSnapshot = await getDocs(q);
     const tables = {};
     tablesSnapshot.forEach((doc) => {
@@ -894,9 +1148,9 @@ export const getPagedTables = async (lastDoc = null, pageSize = 10) => {
         ...doc.data()
       };
     });
-    
+
     const lastVisible = tablesSnapshot.docs[tablesSnapshot.docs.length - 1];
-    
+
     return { tables, lastVisible };
   } catch (error) {
     console.error('Error getting paged tables:', error);
@@ -911,7 +1165,7 @@ export const getPagedMenuItems = async (lastDoc = null, pageSize = 10) => {
     if (lastDoc) {
       q = query(q, startAfter(lastDoc));
     }
-    
+
     const menuItemsSnapshot = await getDocs(q);
     const menuItems = [];
     menuItemsSnapshot.forEach((doc) => {
@@ -925,9 +1179,9 @@ export const getPagedMenuItems = async (lastDoc = null, pageSize = 10) => {
         ...data
       });
     });
-    
+
     const lastVisible = menuItemsSnapshot.docs[menuItemsSnapshot.docs.length - 1];
-    
+
     return { menuItems, lastVisible };
   } catch (error) {
     console.error('Error getting paged menu items:', error);
@@ -944,24 +1198,24 @@ export const getMenuItemsSelective = async (fields = ['name', 'price', 'availabl
     if (cachedData && isOnline) {
       return cachedData;
     }
-    
+
     const menuItemsSnapshot = await getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
     const menuItems = [];
-    
+
     menuItemsSnapshot.forEach((doc) => {
       const data = doc.data();
       const item = { id: doc.id };
-      
+
       fields.forEach(field => {
         item[field] = data[field];
       });
-      
+
       menuItems.push(item);
     });
-    
+
     // Cache the result
     setCached(cacheKey, menuItems);
-    
+
     return menuItems;
   } catch (error) {
     console.error('Error getting selective menu items:', error);
@@ -969,859 +1223,8 @@ export const getMenuItemsSelective = async (fields = ['name', 'price', 'availabl
   }
 };
 
-// ==================== ENHANCED INVENTORY MANAGEMENT FUNCTIONS ====================
-
-// Enhanced function to check if inventory item already exists (prevent duplicates)
-export const findExistingInventoryItem = async (itemName, category) => {
-  try {
-    const q = query(
-      inventoryItemsCollection,
-      where('name', '==', itemName.toLowerCase().trim()),
-      where('category', '==', category)
-    );
-    const snapshot = await getDocs(q);
-    
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0];
-      return { id: doc.id, ...doc.data() };
-    }
-    return null;
-  } catch (error) {
-    console.error('Error finding existing inventory item:', error);
-    return null;
-  }
-};
-
-// Enhanced add inventory item with duplicate prevention
-export const addInventoryItem = async (itemData) => {
-  try {
-    // Check if item already exists to prevent duplicates
-    const existingItem = await findExistingInventoryItem(itemData.name, itemData.category);
-    if (existingItem) {
-      console.log('Item already exists:', existingItem.name);
-      return existingItem.id; // Return existing item ID
-    }
-    
-    const newItem = {
-      ...itemData,
-      name: itemData.name.toLowerCase().trim(), // Normalize name for consistency
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      currentStock: 0,
-      totalPurchased: 0,
-      totalUsed: 0,
-      totalWasted: 0,
-      // Enhanced fields for better tracking
-      suppliers: [], // Array to track all suppliers who have supplied this item
-      firstPurchaseDate: null,
-      lastPurchaseDate: null
-    };
-    
-    const docRef = doc(inventoryItemsCollection);
-    await setDoc(docRef, newItem);
-    return docRef.id;
-  } catch (error) {
-    console.error('Error adding inventory item:', error);
-    throw error;
-  }
-};
-
-// Enhanced record purchase with supplier tracking
-export const recordPurchase = async (purchaseData) => {
-  try {
-    // Ensure we have required fields
-    if (!purchaseData.itemId || !purchaseData.quantity || !purchaseData.unitCost) {
-      throw new Error('Missing required purchase data fields');
-    }
-    
-    const purchaseRecord = {
-      ...purchaseData,
-      timestamp: serverTimestamp(),
-      type: 'purchase',
-      // Enhanced tracking fields
-      purchaseDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
-      supplier: purchaseData.supplier || 'Unknown',
-      notes: purchaseData.notes || ''
-    };
-    
-    const docRef = doc(purchaseRecordsCollection);
-    await setDoc(docRef, purchaseRecord);
-    
-    // Update inventory item with supplier information
-    const itemRef = doc(db, 'inventory_items', purchaseData.itemId);
-    const itemSnap = await getDoc(itemRef);
-    if (itemSnap.exists()) {
-      const currentItem = itemSnap.data();
-      const purchaseAmount = parseFloat(purchaseData.quantity);
-      
-      // Update supplier tracking
-      const suppliers = Array.isArray(currentItem.suppliers) ? [...currentItem.suppliers] : [];
-      const supplierName = purchaseData.supplier || 'Unknown';
-      
-      if (!suppliers.includes(supplierName)) {
-        suppliers.push(supplierName);
-      }
-      
-      // Update dates
-      const today = new Date();
-      const firstPurchaseDate = currentItem.firstPurchaseDate || today;
-      const lastPurchaseDate = today;
-      
-      await updateDoc(itemRef, {
-        currentStock: currentItem.currentStock + purchaseAmount,
-        totalPurchased: currentItem.totalPurchased + purchaseAmount,
-        suppliers: suppliers,
-        firstPurchaseDate: firstPurchaseDate,
-        lastPurchaseDate: lastPurchaseDate,
-        updatedAt: serverTimestamp()
-      });
-    }
-    
-    return docRef.id;
-  } catch (error) {
-    console.error('Error recording purchase:', error);
-    throw error;
-  }
-};
-
-// ==================== REPORTING AND ANALYTICS FUNCTIONS ====================
-
-// Get usage records for an item within a specific date range
-export const getItemUsageRecordsByDateRange = async (itemId, startDate, endDate) => {
-  try {
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
-    
-    const q = query(
-      usageLogsCollection,
-      where('itemId', '==', itemId),
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    return records;
-  } catch (error) {
-    console.error('Error getting usage records by date range:', error);
-    throw error;
-  }
-};
-
-// Get purchase records for an item within a specific date range
-export const getItemPurchaseRecordsByDateRange = async (itemId, startDate, endDate) => {
-  try {
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
-    
-    const q = query(
-      purchaseRecordsCollection,
-      where('itemId', '==', itemId),
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    return records;
-  } catch (error) {
-    console.error('Error getting purchase records by date range:', error);
-    throw error;
-  }
-};
-
-// Get waste records for an item within a specific date range
-export const getItemWasteRecordsByDateRange = async (itemId, startDate, endDate) => {
-  try {
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
-    
-    const q = query(
-      wasteEntriesCollection,
-      where('itemId', '==', itemId),
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    return records;
-  } catch (error) {
-    console.error('Error getting waste records by date range:', error);
-    throw error;
-  }
-};
-
-// Generate comprehensive usage report for a category within date range
-export const getCategoryUsageReport = async (category, startDate, endDate) => {
-  try {
-    // First get all inventory items in the category
-    const itemsQuery = query(
-      inventoryItemsCollection,
-      where('category', '==', category)
-    );
-    const itemsSnapshot = await getDocs(itemsQuery);
-    
-    const report = {
-      category: category,
-      startDate: startDate,
-      endDate: endDate,
-      items: [],
-      totalUsage: 0,
-      totalPurchases: 0,
-      totalWaste: 0
-    };
-    
-    for (const doc of itemsSnapshot.docs) {
-      const item = { id: doc.id, ...doc.data() };
-      
-      if (!item || !item.id) continue; // Skip invalid items
-      
-      // Get usage records for this item
-      let usageRecords = [];
-      let purchaseRecords = [];
-      let wasteRecords = [];
-      
-      try {
-        usageRecords = await getItemUsageRecordsByDateRange(item.id, startDate, endDate);
-        purchaseRecords = await getItemPurchaseRecordsByDateRange(item.id, startDate, endDate);
-        wasteRecords = await getItemWasteRecordsByDateRange(item.id, startDate, endDate);
-      } catch (error) {
-        console.error(`Error fetching records for item ${item.id}:`, error);
-        continue; // Skip this item if we can't get its records
-      }
-      
-      // Calculate totals
-      const totalUsage = Array.isArray(usageRecords) ? 
-        usageRecords.reduce((sum, record) => sum + (record.quantity || 0), 0) : 0;
-      const totalPurchases = Array.isArray(purchaseRecords) ? 
-        purchaseRecords.reduce((sum, record) => sum + (record.quantity || 0), 0) : 0;
-      const totalWaste = Array.isArray(wasteRecords) ? 
-        wasteRecords.reduce((sum, record) => sum + (record.quantity || 0), 0) : 0;
-      
-      if (totalUsage > 0 || totalPurchases > 0 || totalWaste > 0) {
-        report.items.push({
-          ...item,
-          usageRecords,
-          purchaseRecords,
-          wasteRecords,
-          totalUsage,
-          totalPurchases,
-          totalWaste,
-          usageBySupplier: groupBySupplier(purchaseRecords, usageRecords)
-        });
-        
-        report.totalUsage += totalUsage;
-        report.totalPurchases += totalPurchases;
-        report.totalWaste += totalWaste;
-      }
-    }
-    
-    return report;
-  } catch (error) {
-    console.error('Error generating category usage report:', error);
-    throw error;
-  }
-};
-
-// Helper function to group usage by supplier
-const groupBySupplier = (purchaseRecords, usageRecords) => {
-  const supplierUsage = {};
-  
-  // Group purchases by supplier
-  if (Array.isArray(purchaseRecords)) {
-    purchaseRecords.forEach(record => {
-      const supplier = record.supplier || 'Unknown';
-      if (!supplierUsage[supplier]) {
-        supplierUsage[supplier] = {
-          purchased: 0,
-          used: 0,
-          waste: 0
-        };
-      }
-      supplierUsage[supplier].purchased += record.quantity || 0;
-    });
-  }
-  
-  // For simplicity, we'll distribute usage proportionally based on purchases
-  // In a more advanced system, you might track actual usage by supplier
-  const totalPurchased = Array.isArray(purchaseRecords) ? 
-    purchaseRecords.reduce((sum, record) => sum + (record.quantity || 0), 0) : 0;
-  
-  if (totalPurchased > 0 && Array.isArray(usageRecords)) {
-    usageRecords.forEach(record => {
-      const usageAmount = record.quantity || 0;
-      if (Array.isArray(purchaseRecords)) {
-        purchaseRecords.forEach(purchase => {
-          const supplier = purchase.supplier || 'Unknown';
-          const proportion = (purchase.quantity || 0) / totalPurchased;
-          supplierUsage[supplier].used += usageAmount * proportion;
-        });
-      }
-    });
-  }
-  
-  return supplierUsage;
-};
-
-// Get supplier performance report
-export const getSupplierPerformanceReport = async (startDate, endDate) => {
-  try {
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
-    
-    // Get all purchase records in date range
-    const q = query(
-      purchaseRecordsCollection,
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
-    const supplierData = {};
-    
-    snapshot.forEach((doc) => {
-      const record = doc.data();
-      if (!record) return; // Skip if record is null/undefined
-      
-      const supplier = record.supplier || 'Unknown';
-      
-      if (!supplierData[supplier]) {
-        supplierData[supplier] = {
-          totalPurchases: 0,
-          totalAmount: 0,
-          items: new Set(),
-          firstPurchase: record.timestamp,
-          lastPurchase: record.timestamp
-        };
-      }
-      
-      supplierData[supplier].totalPurchases += 1;
-      supplierData[supplier].totalAmount += record.totalCost || 0;
-      if (record.itemId) {
-        supplierData[supplier].items.add(record.itemId);
-      }
-      
-      if (record.timestamp && supplierData[supplier].firstPurchase && 
-          record.timestamp.toMillis() < supplierData[supplier].firstPurchase.toMillis()) {
-        supplierData[supplier].firstPurchase = record.timestamp;
-      }
-      if (record.timestamp && supplierData[supplier].lastPurchase && 
-          record.timestamp.toMillis() > supplierData[supplier].lastPurchase.toMillis()) {
-        supplierData[supplier].lastPurchase = record.timestamp;
-      }
-    });
-    
-    // Convert to array format
-    const report = Object.entries(supplierData).map(([supplier, data]) => ({
-      supplier,
-      totalPurchases: data.totalPurchases,
-      totalAmount: data.totalAmount,
-      uniqueItems: data.items.size,
-      firstPurchase: data.firstPurchase && typeof data.firstPurchase.toDate === 'function' ? 
-                    data.firstPurchase.toDate() : new Date(),
-      lastPurchase: data.lastPurchase && typeof data.lastPurchase.toDate === 'function' ? 
-                   data.lastPurchase.toDate() : new Date(),
-      averageOrderValue: data.totalPurchases > 0 ? data.totalAmount / data.totalPurchases : 0
-    }));
-    
-    return report.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
-  } catch (error) {
-    console.error('Error generating supplier performance report:', error);
-    throw error;
-  }
-};
-
-// Get inventory turnover report
-export const getInventoryTurnoverReport = async (startDate, endDate) => {
-  try {
-    const items = await getAllInventoryItems();
-    if (!Array.isArray(items)) {
-      throw new Error('Failed to fetch inventory items');
-    }
-    const report = [];
-    
-    for (const item of items) {
-      if (!item || !item.id) continue; // Skip invalid items
-      
-      // Get usage and purchase data for the period
-      let usageRecords = [];
-      let purchaseRecords = [];
-      
-      try {
-        usageRecords = await getItemUsageRecordsByDateRange(item.id, startDate, endDate);
-        purchaseRecords = await getItemPurchaseRecordsByDateRange(item.id, startDate, endDate);
-      } catch (error) {
-        console.error(`Error fetching records for item ${item.id}:`, error);
-        continue; // Skip this item if we can't get its records
-      }
-      
-      const totalUsage = Array.isArray(usageRecords) ? 
-        usageRecords.reduce((sum, record) => sum + (record.quantity || 0), 0) : 0;
-      const totalPurchases = Array.isArray(purchaseRecords) ? 
-        purchaseRecords.reduce((sum, record) => sum + (record.quantity || 0), 0) : 0;
-      
-      // Calculate average inventory (simplified method)
-      const averageInventory = ((item.currentStock || 0) + ((item.currentStock || 0) - totalUsage + totalPurchases)) / 2;
-      
-      // Calculate turnover ratio
-      const turnoverRatio = averageInventory > 0 ? totalUsage / averageInventory : 0;
-      
-      if (totalUsage > 0 || totalPurchases > 0) {
-        report.push({
-          ...item,
-          totalUsage,
-          totalPurchases,
-          averageInventory,
-          turnoverRatio,
-          usageRecords,
-          purchaseRecords
-        });
-      }
-    }
-    
-    return report.sort((a, b) => (b.turnoverRatio || 0) - (a.turnoverRatio || 0));
-  } catch (error) {
-    console.error('Error generating inventory turnover report:', error);
-    throw error;
-  }
-};
-
-// ==================== BASIC INVENTORY FUNCTIONS ====================
-
-// Get all inventory items with caching and performance optimization
-export const getAllInventoryItems = async () => {
-  try {
-    // Check cache first
-    const cachedData = getCached('inventory_items');
-    if (cachedData && isOnline) {
-      return cachedData;
-    }
-    
-    return await monitorFirebaseOperation('getAllInventoryItems', async () => {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Firebase timeout')), 30000)
-      );
-      
-      const firebasePromise = getDocs(inventoryItemsCollection);
-      const snapshot = await Promise.race([firebasePromise, timeoutPromise]);
-      
-      const items = [];
-      snapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() });
-      });
-      
-      // Cache the result
-      setCached('inventory_items', items);
-      return items;
-    });
-  } catch (error) {
-    console.error('Error getting inventory items:', error);
-    return []; // Return empty array instead of throwing to prevent cascading failures
-  }
-};
-
-// Subscribe to inventory items updates with optimized handling
-export const subscribeToInventoryItems = (callback) => {
-  // Debounce rapid updates to prevent UI thrashing
-  let lastCallbackTime = 0;
-  const DEBOUNCE_DELAY = 100; // 100ms debounce
-  
-  return onSnapshot(
-    inventoryItemsCollection,
-    (snapshot) => {
-      const now = Date.now();
-      if (now - lastCallbackTime < DEBOUNCE_DELAY) {
-        return; // Skip rapid updates
-      }
-      lastCallbackTime = now;
-      
-      const items = [];
-      snapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() });
-      });
-      
-      // Clear relevant cache
-      clearCache('inventory_items');
-      callback(items);
-    },
-    (error) => {
-      console.error('Error subscribing to inventory items:', error);
-    }
-  );
-};
-
-// Subscribe to purchase records updates with optimized handling
-export const subscribeToPurchaseRecords = (callback) => {
-  // Debounce rapid updates to prevent UI thrashing
-  let lastCallbackTime = 0;
-  const DEBOUNCE_DELAY = 150; // 150ms debounce for purchase records
-  
-  return onSnapshot(
-    purchaseRecordsCollection,
-    (snapshot) => {
-      const now = Date.now();
-      if (now - lastCallbackTime < DEBOUNCE_DELAY) {
-        return; // Skip rapid updates
-      }
-      lastCallbackTime = now;
-      
-      const records = [];
-      snapshot.forEach((doc) => {
-        records.push({ id: doc.id, ...doc.data() });
-      });
-      
-      callback(records);
-    },
-    (error) => {
-      console.error('Error subscribing to purchase records:', error);
-    }
-  );
-};
-
-// Update inventory item
-export const updateInventoryItem = async (itemId, updateData) => {
-  try {
-    const itemRef = doc(db, 'inventory_items', itemId);
-    await updateDoc(itemRef, {
-      ...updateData,
-      updatedAt: serverTimestamp()
-    });
-  } catch (error) {
-    console.error('Error updating inventory item:', error);
-    throw error;
-  }
-};
-
-// Delete inventory item
-export const deleteInventoryItem = async (itemId) => {
-  try {
-    const itemRef = doc(db, 'inventory_items', itemId);
-    await deleteDoc(itemRef);
-  } catch (error) {
-    console.error('Error deleting inventory item:', error);
-    throw error;
-  }
-};
-
-// Record inventory usage
-export const recordUsage = async (usageData) => {
-  try {
-    const usageRecord = {
-      ...usageData,
-      timestamp: serverTimestamp(),
-      type: 'usage'
-    };
-    
-    const docRef = doc(usageLogsCollection);
-    await setDoc(docRef, usageRecord);
-    
-    // Update inventory item stock
-    const itemRef = doc(db, 'inventory_items', usageData.itemId);
-    const itemSnap = await getDoc(itemRef);
-    if (itemSnap.exists()) {
-      const currentItem = itemSnap.data();
-      const newStock = currentItem.currentStock - usageData.quantity;
-      await updateDoc(itemRef, {
-        currentStock: Math.max(0, newStock),
-        totalUsed: currentItem.totalUsed + usageData.quantity,
-        updatedAt: serverTimestamp()
-      });
-    }
-    
-    return docRef.id;
-  } catch (error) {
-    console.error('Error recording usage:', error);
-    throw error;
-  }
-};
-
-// Record inventory waste
-export const recordWaste = async (wasteData) => {
-  try {
-    const wasteRecord = {
-      ...wasteData,
-      timestamp: serverTimestamp(),
-      type: 'waste'
-    };
-    
-    const docRef = doc(wasteEntriesCollection);
-    await setDoc(docRef, wasteRecord);
-    
-    // Update inventory item stock
-    const itemRef = doc(db, 'inventory_items', wasteData.itemId);
-    const itemSnap = await getDoc(itemRef);
-    if (itemSnap.exists()) {
-      const currentItem = itemSnap.data();
-      const newStock = currentItem.currentStock - wasteData.quantity;
-      await updateDoc(itemRef, {
-        currentStock: Math.max(0, newStock),
-        totalWasted: currentItem.totalWasted + wasteData.quantity,
-        updatedAt: serverTimestamp()
-      });
-    }
-    
-    return docRef.id;
-  } catch (error) {
-    console.error('Error recording waste:', error);
-    throw error;
-  }
-};
-
-// Get purchase records for an item
-export const getItemPurchaseRecords = async (itemId) => {
-  try {
-    const q = query(
-      purchaseRecordsCollection,
-      where('itemId', '==', itemId),
-      orderBy('timestamp', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    return records;
-  } catch (error) {
-    console.error('Error getting purchase records:', error);
-    throw error;
-  }
-};
-
-// Get usage records for an item
-export const getItemUsageRecords = async (itemId) => {
-  try {
-    const q = query(
-      usageLogsCollection,
-      where('itemId', '==', itemId),
-      orderBy('timestamp', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    return records;
-  } catch (error) {
-    console.error('Error getting usage records:', error);
-    throw error;
-  }
-};
-
-// Get waste records for an item
-export const getItemWasteRecords = async (itemId) => {
-  try {
-    const q = query(
-      wasteEntriesCollection,
-      where('itemId', '==', itemId),
-      orderBy('timestamp', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    return records;
-  } catch (error) {
-    console.error('Error getting waste records:', error);
-    throw error;
-  }
-};
-
-// Get all expense records for a date range with caching
-export const getExpenseRecords = async (startDate, endDate) => {
-  try {
-    // Create cache key based on date range
-    const cacheKey = `expense_records_${startDate.getTime()}_${endDate.getTime()}`;
-    const cachedData = getCached(cacheKey);
-    if (cachedData && isOnline) {
-      return cachedData;
-    }
-    
-    // Convert JavaScript dates to Firestore timestamps
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
-    
-    const q = query(
-      purchaseRecordsCollection,
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
-    const records = [];
-    snapshot.forEach((doc) => {
-      records.push({ id: doc.id, ...doc.data() });
-    });
-    
-    // Cache the result for 2 minutes (shorter since it's time-sensitive)
-    setCached(cacheKey, records);
-    return records;
-  } catch (error) {
-    console.error('Error getting expense records:', error);
-    throw error;
-  }
-};
-
-// Calculate total expenses for a period with caching
-export const calculateTotalExpenses = async (startDate, endDate) => {
-  try {
-    // Create cache key based on date range
-    const cacheKey = `total_expenses_${startDate.getTime()}_${endDate.getTime()}`;
-    const cachedData = getCached(cacheKey);
-    if (cachedData && isOnline) {
-      return cachedData;
-    }
-    
-    const records = await getExpenseRecords(startDate, endDate);
-    const total = records.reduce((sum, record) => sum + (record.totalCost || 0), 0);
-    
-    // Cache the result for 2 minutes
-    setCached(cacheKey, total);
-    return total;
-  } catch (error) {
-    console.error('Error calculating total expenses:', error);
-    throw error;
-  }
-};
-
-// Get low stock items (items below minimum threshold)
-export const getLowStockItems = async (threshold = 10) => {
-  try {
-    const q = query(
-      inventoryItemsCollection,
-      where('currentStock', '<=', threshold),
-      where('currentStock', '>', 0)
-    );
-    const snapshot = await getDocs(q);
-    const items = [];
-    snapshot.forEach((doc) => {
-      items.push({ id: doc.id, ...doc.data() });
-    });
-    return items;
-  } catch (error) {
-    console.error('Error getting low stock items:', error);
-    throw error;
-  }
-};
-
-// Get out of stock items
-export const getOutOfStockItems = async () => {
-  try {
-    const q = query(
-      inventoryItemsCollection,
-      where('currentStock', '==', 0)
-    );
-    const snapshot = await getDocs(q);
-    const items = [];
-    snapshot.forEach((doc) => {
-      items.push({ id: doc.id, ...doc.data() });
-    });
-    return items;
-  } catch (error) {
-    console.error('Error getting out of stock items:', error);
-    throw error;
-  }
-};
-
-// Get all purchase records (for export)
-export const getAllPurchaseRecords = async () => {
-  try {
-    const snapshot = await getDocs(purchaseRecordsCollection);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Error getting all purchase records:', error);
-    throw error;
-  }
-};
-
-// Get all usage logs (for export)
-export const getAllUsageLogs = async () => {
-  try {
-    const snapshot = await getDocs(usageLogsCollection);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Error getting all usage logs:', error);
-    throw error;
-  }
-};
-
-// Get all waste entries (for export)
-export const getAllWasteEntries = async () => {
-  try {
-    const snapshot = await getDocs(wasteEntriesCollection);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Error getting all waste entries:', error);
-    throw error;
-  }
-};
-
-// Subscribe to real-time purchase records updates
 
 
-// Subscribe to real-time usage logs updates
-export const subscribeToUsageLogs = (callback) => {
-  if (typeof callback !== 'function') {
-    console.error('Callback must be a function');
-    return () => {};
-  }
-  
-  const unsubscribe = onSnapshot(usageLogsCollection, (snapshot) => {
-    const logs = [];
-    snapshot.forEach((doc) => {
-      logs.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-    callback(logs);
-  });
-  
-  return unsubscribe;
-};
 
-// Subscribe to real-time waste entries updates
-export const subscribeToWasteEntries = (callback) => {
-  if (typeof callback !== 'function') {
-    console.error('Callback must be a function');
-    return () => {};
-  }
-  
-  const unsubscribe = onSnapshot(wasteEntriesCollection, (snapshot) => {
-    const entries = [];
-    snapshot.forEach((doc) => {
-      entries.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-    callback(entries);
-  });
-  
-  return unsubscribe;
-};
+
+

@@ -12,41 +12,35 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
   useEffect(() => {
     const unsubscribe = listenToAuthState((user) => {
       const authenticated = isAuthenticated();
-      
-      if (!authenticated && requiredPermission) {
-        // Not authenticated but permission is required - redirect to login
-        navigate('/login', { 
+
+      if (!authenticated) {
+        // Not authenticated - redirect to login
+        navigate('/login', {
           state: { from: location },
-          replace: true 
+          replace: true
         });
         setIsAuthorized(false);
-      } else if (authenticated && requiredPermission) {
+      } else if (requiredPermission) {
         // Authenticated and permission is required - check permissions
         let authorized = true;
-        
-        if (requiredPermission) {
-          if (requiredPermission === 'settings_access') {
-            authorized = canAccessSettings();
-          } else {
-            // For other permissions, check them individually
-            authorized = hasPermission(requiredPermission);
-          }
+
+        if (requiredPermission === 'settings_access') {
+          authorized = canAccessSettings();
+        } else {
+          authorized = hasPermission(requiredPermission);
         }
-        
+
         if (!authorized) {
           // Authenticated but no permission - redirect to tables
           navigate('/tables', { replace: true });
         }
-        
+
         setIsAuthorized(authorized);
-      } else if (!requiredPermission) {
-        // No permission required, allow access
-        setIsAuthorized(true);
       } else {
         // Authenticated but no specific permission required
         setIsAuthorized(true);
       }
-      
+
       setAuthChecked(true);
     });
 
@@ -63,8 +57,8 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
     );
   }
 
-  // Show login if not authenticated and permission is required
-  if (requiredPermission && !isAuthenticated()) {
+  // Show login if not authenticated
+  if (!isAuthenticated()) {
     return <LoginPage />;
   }
 
