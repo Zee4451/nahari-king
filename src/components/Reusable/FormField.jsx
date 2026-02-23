@@ -41,22 +41,40 @@ const FormField = ({
       if (min !== undefined && numValue < min) return;
       if (max !== undefined && numValue > max) return;
     }
-    
+
     onChange(e);
   };
 
-  const inputType = type === 'select' ? 'select' : 
-                   type === 'textarea' ? 'textarea' : 'input';
+  const inputType = type === 'select' ? 'select' :
+    type === 'textarea' ? 'textarea' : 'input';
 
   return (
     <div className={`form-field ${className} ${error ? 'has-error' : ''}`}>
-      {label && (
+      {label && type !== 'checkbox' && (
         <label htmlFor={name} className="form-label">
           {label}
           {required && <span className="required-indicator">*</span>}
         </label>
       )}
-      
+
+      {type === 'checkbox' && label && (
+        <label htmlFor={name} className="form-label checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '0.5rem' }}>
+          <input
+            type="checkbox"
+            id={name}
+            name={name}
+            checked={!!value}
+            onChange={handleChange}
+            disabled={disabled}
+            className="form-checkbox"
+            style={{ width: '18px', height: '18px', margin: 0 }}
+            {...inputProps}
+          />
+          {label}
+          {required && <span className="required-indicator">*</span>}
+        </label>
+      )}
+
       {inputType === 'select' ? (
         <select
           id={name}
@@ -82,7 +100,7 @@ const FormField = ({
           className="form-control"
           {...inputProps}
         />
-      ) : (
+      ) : type !== 'checkbox' ? (
         <input
           type={type}
           id={name}
@@ -98,8 +116,8 @@ const FormField = ({
           className="form-control"
           {...inputProps}
         />
-      )}
-      
+      ) : null}
+
       {error && <div className="error-message">{error}</div>}
     </div>
   );

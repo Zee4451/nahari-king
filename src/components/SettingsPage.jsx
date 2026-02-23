@@ -90,26 +90,26 @@ const SettingsPage = () => {
             {/* Tab Navigation */}
             <div className={styles['settings-tabs'] || 'settings-tabs'}>
               <button
-                className={`tab-btn ${activeTab === 'menu' ? 'active' : ''}`}
+                className={`${styles['tab-btn'] || 'tab-btn'} ${activeTab === 'menu' ? (styles.active || 'active') : ''}`}
                 onClick={() => setActiveTab('menu')}
               >
                 Menu Management
               </button>
               <button
-                className={`tab-btn ${activeTab === 'tables' ? 'active' : ''}`}
+                className={`${styles['tab-btn'] || 'tab-btn'} ${activeTab === 'tables' ? (styles.active || 'active') : ''}`}
                 onClick={() => setActiveTab('tables')}
               >
                 Table Management
               </button>
 
               <button
-                className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+                className={`${styles['tab-btn'] || 'tab-btn'} ${activeTab === 'users' ? (styles.active || 'active') : ''}`}
                 onClick={() => setActiveTab('users')}
               >
                 User Management
               </button>
               <button
-                className={`tab-btn ${activeTab === 'pos_config' ? 'active' : ''}`}
+                className={`${styles['tab-btn'] || 'tab-btn'} ${activeTab === 'pos_config' ? (styles.active || 'active') : ''}`}
                 onClick={() => setActiveTab('pos_config')}
               >
                 POS Configuration

@@ -135,7 +135,7 @@ const MenuManagement = () => {
         return (
             <div
                 ref={(node) => drag(drop(node))}
-                className={`menu-item ${isDragging ? 'dragging' : ''} ${!item.available ? 'unavailable' : ''}`}
+                className={`${styles['menu-item'] || 'menu-item'} ${isDragging ? (styles.dragging || 'dragging') : ''} ${!item.available ? (styles.unavailable || 'unavailable') : ''}`}
                 style={{ opacity: isDragging ? 0.5 : 1 }}
             >
                 <div className={styles['item-handle'] || 'item-handle'}>⋮⋮</div>
@@ -146,7 +146,7 @@ const MenuManagement = () => {
                 </div>
                 <div className={styles['item-actions'] || 'item-actions'}>
                     <button
-                        className={`availability-toggle ${item.available ? 'available' : 'unavailable'}`}
+                        className={`${styles['availability-toggle'] || 'availability-toggle'} ${item.available ? (styles.available || 'available') : (styles.unavailable || 'unavailable')}`}
                         onClick={() => handleToggleAvailability(item.id, item.available)}
                         disabled={toggleAvailabilityOperation.loading}
                     >
