@@ -259,10 +259,13 @@ body {
 /* Table Switcher */
 .table-switcher {
   position: sticky;
-  top: 4rem;
+  top: 0;
+  margin-top: -1rem;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding: 1rem 0.5rem 0.5rem 0.5rem;
   background-color: #ffffff;
   /* White background */
-  padding: 0.5rem;
   z-index: 99;
   border-bottom: 1px solid #e0e0e0;
   /* Light gray border */

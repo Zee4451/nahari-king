@@ -1,6 +1,6 @@
-import { 
-  signInWithEmailAndPassword, 
-  signOut, 
+import {
+  signInWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   updatePassword,
@@ -45,33 +45,33 @@ class RateLimiter {
   addAttempt() {
     const now = Date.now();
     // Remove old attempts outside the window
-    this.attempts = this.attempts.filter(attempt => 
+    this.attempts = this.attempts.filter(attempt =>
       now - attempt.timestamp < LOGIN_WINDOW
     );
-    
+
     this.attempts.push({ timestamp: now });
     this.saveAttempts();
   }
 
   isLockedOut() {
     const now = Date.now();
-    const recentAttempts = this.attempts.filter(attempt => 
+    const recentAttempts = this.attempts.filter(attempt =>
       now - attempt.timestamp < LOCKOUT_DURATION
     );
-    
+
     return recentAttempts.length >= MAX_LOGIN_ATTEMPTS;
   }
 
   getLockoutTimeRemaining() {
     if (!this.isLockedOut()) return 0;
-    
+
     const now = Date.now();
     const oldestRecentAttempt = Math.min(
       ...this.attempts
         .filter(attempt => now - attempt.timestamp < LOCKOUT_DURATION)
         .map(attempt => attempt.timestamp)
     );
-    
+
     return Math.max(0, LOCKOUT_DURATION - (now - oldestRecentAttempt));
   }
 
@@ -130,20 +130,20 @@ class AuthService {
               const usersCollection = collection(db, 'users');
               const usersSnapshot = await getDocs(usersCollection);
               const isFirstUser = usersSnapshot.empty;
-              
+
               // First user gets admin privileges, others get default user role
               const role = isFirstUser ? 'admin' : 'user';
-              const permissions = isFirstUser ? 
-                ['settings_access', 'menu_management', 'user_management'] : 
+              const permissions = isFirstUser ?
+                ['settings_access', 'menu_management', 'user_management'] :
                 [];
-                
+
               await setDoc(doc(db, 'users', user.uid), {
                 email: user.email,
                 role: role,
                 permissions: permissions,
                 createdAt: new Date().toISOString()
               });
-              
+
               this.currentUser = {
                 ...user,
                 role: role,
@@ -164,7 +164,7 @@ class AuthService {
         // User is signed out
         this.currentUser = null;
       }
-      
+
       // Notify all listeners after user data is fully loaded
       this.authListeners.forEach(callback => callback(this.currentUser));
     });
@@ -197,36 +197,36 @@ class AuthService {
       // Sanitize inputs
       const sanitizedEmail = sanitizeInput(email);
       const sanitizedPassword = sanitizeInput(password);
-      
+
       // Validate inputs
       if (!validateEmail(sanitizedEmail)) {
         throw new Error('Invalid email format');
       }
-      
+
       if (!sanitizedPassword) {
         throw new Error('Password is required');
       }
-      
+
       // Check rate limiting
       if (rateLimiter.isLockedOut()) {
         const timeRemaining = rateLimiter.getLockoutTimeRemaining();
         const minutes = Math.ceil(timeRemaining / 60000);
         throw new Error(`Too many failed attempts. Try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
       }
-      
+
       // Attempt login
       const userCredential = await signInWithEmailAndPassword(
-        auth, 
-        sanitizedEmail, 
+        auth,
+        sanitizedEmail,
         sanitizedPassword
       );
-      
+
       // Clear failed attempts on successful login
       rateLimiter.clearAttempts();
-      
+
       // Store auth state in localStorage for persistence
       this.storeAuthState(userCredential.user);
-      
+
       return {
         success: true,
         user: userCredential.user
@@ -234,15 +234,18 @@ class AuthService {
     } catch (error) {
       // Record failed attempt
       rateLimiter.addAttempt();
-      
+
       let errorMessage = 'Login failed';
-      
+
       switch (error.code) {
         case 'auth/user-not-found':
           errorMessage = 'No account found with this email';
           break;
         case 'auth/wrong-password':
           errorMessage = 'Incorrect password';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password';
           break;
         case 'auth/invalid-email':
           errorMessage = 'Invalid email address';
@@ -259,7 +262,7 @@ class AuthService {
         default:
           errorMessage = error.message || 'Login failed. Please try again.';
       }
-      
+
       throw new Error(errorMessage);
     }
   }
@@ -294,41 +297,41 @@ class AuthService {
       if (!isFirstUser && !this.isAdmin()) {
         throw new Error('Insufficient permissions to create users');
       }
-      
+
       // Sanitize inputs
       const sanitizedEmail = sanitizeInput(email);
       const sanitizedPassword = sanitizeInput(password);
-      
+
       // Validate inputs
       if (!validateEmail(sanitizedEmail)) {
         throw new Error('Invalid email format');
       }
-      
+
       if (!validatePassword(sanitizedPassword)) {
         throw new Error('Password must be at least 8 characters with uppercase, lowercase, number, and special character');
       }
-      
+
       // Check if user already exists
       const usersQuery = query(
         collection(db, 'users'),
         where('email', '==', sanitizedEmail)
       );
       const usersSnapshot = await getDocs(usersQuery);
-      
+
       if (!usersSnapshot.empty) {
         throw new Error('User with this email already exists');
       }
-      
+
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         sanitizedEmail,
         sanitizedPassword
       );
-      
+
       // Determine role - first user gets admin, others get specified role
       const userRole = isFirstUser ? 'admin' : role;
-      
+
       // Create user document in Firestore
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email: sanitizedEmail,
@@ -337,7 +340,7 @@ class AuthService {
         createdBy: this.currentUser?.uid || userCredential.user.uid, // Self-created if first user
         createdAt: new Date().toISOString()
       });
-      
+
       // If the newly created user is an admin, make sure current user still has proper permissions
       // This is important to ensure the current user doesn't lose admin privileges
       if (this.currentUser && this.currentUser.uid) {
@@ -356,7 +359,7 @@ class AuthService {
           console.warn('Could not refresh current user permissions:', refreshError);
         }
       }
-      
+
       return {
         success: true,
         user: userCredential.user,
@@ -365,7 +368,7 @@ class AuthService {
       };
     } catch (error) {
       let errorMessage = 'Registration failed';
-      
+
       switch (error.code) {
         case 'auth/email-already-in-use':
           errorMessage = 'Email already registered';
@@ -382,7 +385,7 @@ class AuthService {
         default:
           errorMessage = error.message || 'Registration failed';
       }
-      
+
       throw new Error(errorMessage);
     }
   }
@@ -393,27 +396,27 @@ class AuthService {
       if (!this.currentUser) {
         throw new Error('User not authenticated');
       }
-      
+
       // Validate new password
       if (!validatePassword(newPassword)) {
         throw new Error('New password must be at least 8 characters with uppercase, lowercase, number, and special character');
       }
-      
+
       // Re-authenticate user
       const credential = EmailAuthProvider.credential(
         this.currentUser.email,
         currentPassword
       );
-      
+
       await reauthenticateWithCredential(this.currentUser, credential);
-      
+
       // Update password
       await updatePassword(this.currentUser, newPassword);
-      
+
       return { success: true };
     } catch (error) {
       let errorMessage = 'Password change failed';
-      
+
       switch (error.code) {
         case 'auth/wrong-password':
           errorMessage = 'Current password is incorrect';
@@ -424,7 +427,7 @@ class AuthService {
         default:
           errorMessage = error.message || 'Password change failed';
       }
-      
+
       throw new Error(errorMessage);
     }
   }
@@ -436,7 +439,7 @@ class AuthService {
       manager: ['settings_access', 'menu_management', 'order_history'],
       user: ['order_history']
     };
-    
+
     return permissions[role] || permissions.user;
   }
 
