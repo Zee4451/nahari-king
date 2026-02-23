@@ -1,11 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../SettingsPage.module.css';
 import { getPaymentMethods, updatePaymentMethods } from '../../services/shiftService';
+import { generateDataExport, downloadJsonFile } from '../../utils/exportUtils';
+import { performFactoryReset } from '../../utils/clearUtils';
 
 const PosConfig = () => {
     const [paymentMethods, setPaymentMethods] = useState(['Cash', 'UPI']);
     const [newPaymentMethod, setNewPaymentMethod] = useState('');
     const [isUpdatingMethods, setIsUpdatingMethods] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Factory Reset State
+    const [isResetting, setIsResetting] = useState(false);
+    const [resetChallenge, setResetChallenge] = useState('');
+    const [resetProgress, setResetProgress] = useState('');
+    const [resetError, setResetError] = useState('');
+
+    const handleExportData = async () => {
+        setIsExporting(true);
+        try {
+            const data = await generateDataExport();
+            const dateStr = new Date().toISOString().split('T')[0];
+            downloadJsonFile(data, `nalli_nihari_export_${dateStr}.json`);
+        } catch (error) {
+            alert('Failed to export data. Please check the console for details.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleFactoryReset = async () => {
+        if (resetChallenge !== 'DELETE EVERYTHING') {
+            alert('Invalid confirmation string.');
+            return;
+        }
+
+        setIsResetting(true);
+        setResetError('');
+        try {
+            await performFactoryReset(
+                (msg) => setResetProgress(msg),
+                () => setResetProgress('Reset Complete! Reloading...'),
+                (err) => setResetError(err)
+            );
+        } catch (error) {
+            console.error('Factory reset failed', error);
+        } finally {
+            setIsResetting(false);
+            setResetChallenge('');
+        }
+    };
 
     useEffect(() => {
         const loadMethods = async () => {
@@ -97,6 +141,54 @@ const PosConfig = () => {
                             )}
                         </div>
                     ))}
+                </div>
+            </div>
+
+            <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: 'var(--card-bg)', marginTop: '2rem' }}>
+                <h3>Data Management</h3>
+                <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem' }}>
+                    Export all your POS data including inventory, menus, and sales history. This will download a JSON file to your device.
+                </p>
+
+                <button
+                    className={styles['primary-btn'] || 'primary-btn'}
+                    style={{ backgroundColor: '#0056b3' }}
+                    onClick={handleExportData}
+                    disabled={isExporting}
+                >
+                    {isExporting ? 'Exporting...' : 'Export All Data'}
+                </button>
+            </div>
+
+            <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: '#fff3f3', border: '1px solid #dc3545', marginTop: '2rem' }}>
+                <h3 style={{ color: '#dc3545' }}>⚠️ DANGER ZONE: Factory Reset</h3>
+                <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem', color: '#c82333' }}>
+                    This action will permanently delete all POS data including tables, sales history, generic settings, menus, and inventory. It cannot be undone. You will be forced to download a data backup before deletion.
+                </p>
+
+                <div style={{ padding: '15px', backgroundColor: '#ffdede', borderRadius: '4px', marginBottom: '15px' }}>
+                    <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#dc3545' }}>Type <strong>DELETE EVERYTHING</strong> in the box below to proceed:</p>
+                    <input
+                        type="text"
+                        value={resetChallenge}
+                        onChange={e => setResetChallenge(e.target.value)}
+                        placeholder="Type DELETE EVERYTHING"
+                        className={styles['form-input'] || 'form-input'}
+                        style={{ border: '1px solid #dc3545', marginBottom: '10px' }}
+                        disabled={isResetting}
+                    />
+
+                    {resetProgress && <div style={{ fontSize: '0.85rem', color: '#0056b3', marginTop: '5px' }}>Status: {resetProgress}</div>}
+                    {resetError && <div style={{ fontSize: '0.85rem', color: '#dc3545', marginTop: '5px' }}>Error: {resetError}</div>}
+
+                    <button
+                        className={styles['delete-btn'] || 'delete-btn'}
+                        style={{ width: '100%', padding: '10px' }}
+                        onClick={handleFactoryReset}
+                        disabled={resetChallenge !== 'DELETE EVERYTHING' || isResetting}
+                    >
+                        {isResetting ? 'Wiping Database...' : 'CLEAR ALL APP DATA'}
+                    </button>
                 </div>
             </div>
         </div>
