@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import NavigationBar from './NavigationBar';
 import { db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { getCurrentShift, startShift, addPayout, closeShift, getPaymentMethods } from '../services/shiftService';
 
 const ShiftManagement = () => {
     const [loading, setLoading] = useState(true);
     const [shiftData, setShiftData] = useState(null);
     const [paymentMethods, setPaymentMethods] = useState([]);
+    const [payoutsList, setPayoutsList] = useState([]);
 
     // Forms state
     const [openingCashStr, setOpeningCashStr] = useState('');
@@ -20,36 +21,52 @@ const ShiftManagement = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        let unsubscribe = null;
+        let isMounted = true;
+        let unsubscribeShift = null;
+        let unsubscribePayouts = null;
 
         const loadShift = async () => {
             try {
                 const methods = await getPaymentMethods();
-                setPaymentMethods(methods || ['Cash', 'UPI']);
+                if (isMounted) setPaymentMethods(methods || ['Cash', 'UPI']);
 
                 const shift = await getCurrentShift();
                 if (shift) {
-                    setShiftData(shift);
+                    if (isMounted) setShiftData(shift);
                     // Hook up realtime listener
-                    unsubscribe = onSnapshot(doc(db, 'shifts', shift.id), (docSnap) => {
-                        if (docSnap.exists()) {
+                    unsubscribeShift = onSnapshot(doc(db, 'shifts', shift.id), (docSnap) => {
+                        if (docSnap.exists() && isMounted) {
                             setShiftData({ id: docSnap.id, ...docSnap.data() });
                         }
                     });
+
+                    // Listen to payouts subcollection
+                    const payoutsQuery = query(collection(db, 'shifts', shift.id, 'payouts'), orderBy('timestamp', 'desc'));
+                    unsubscribePayouts = onSnapshot(payoutsQuery, (snapshot) => {
+                        if (isMounted) {
+                            const fetchedPayouts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                            setPayoutsList(fetchedPayouts);
+                        }
+                    });
                 } else {
-                    setShiftData(null);
+                    if (isMounted) {
+                        setShiftData(null);
+                        setPayoutsList([]);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to load shift:", err);
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
         loadShift();
 
         return () => {
-            if (unsubscribe) unsubscribe();
+            isMounted = false;
+            if (unsubscribeShift) unsubscribeShift();
+            if (unsubscribePayouts) unsubscribePayouts();
         };
     }, []);
 
@@ -70,7 +87,8 @@ const ShiftManagement = () => {
     };
 
     const handleAddPayout = async () => {
-        if (!payoutAmount || isNaN(payoutAmount) || !payoutReason.trim() || !shiftData) return;
+        const amount = Number(payoutAmount);
+        if (isNaN(amount) || amount <= 0 || !payoutReason.trim() || !shiftData) return;
         setIsSubmitting(true);
         try {
             await addPayout(shiftData.id, Number(payoutAmount), payoutReason.trim(), 'expense');
@@ -141,8 +159,13 @@ const ShiftManagement = () => {
         );
     }
 
-    const { calculatedTotals, payouts } = shiftData;
+    const { calculatedTotals, payouts: legacyPayouts } = shiftData;
 
+    // Merge legacy array payouts with new subcollection payouts
+    const allPayouts = [
+        ...(Array.isArray(legacyPayouts) ? legacyPayouts : []),
+        ...payoutsList
+    ];
     return (
         <div className="tables-page">
             <NavigationBar currentPage="shift" />
@@ -230,8 +253,8 @@ const ShiftManagement = () => {
                         </div>
 
                         <div style={{ maxHeight: '150px', overflowY: 'auto', marginTop: '1rem' }}>
-                            {payouts && payouts.length > 0 ? [...payouts].reverse().map((p, idx) => (
-                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {allPayouts.length > 0 ? allPayouts.map((p, idx) => (
+                                <div key={p.id || idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     <span>{p.reason}</span>
                                     <span style={{ color: 'var(--danger-color)' }}>-₹{p.amount}</span>
                                 </div>
@@ -257,7 +280,7 @@ const ShiftManagement = () => {
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                                 <span>Total Payouts Logged</span>
-                                <span>₹{payouts?.reduce((acc, p) => acc + Number(p.amount), 0).toFixed(2) || '0.00'}</span>
+                                <span>₹{allPayouts.reduce((acc, p) => acc + Number(p.amount), 0).toFixed(2)}</span>
                             </div>
                         </div>
 

@@ -221,29 +221,34 @@ export const getAllTables = async () => {
     }
 
     return await monitorFirebaseOperation('getAllTables', async () => {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase timeout')), 60000)
-      );
-
-      const firebasePromise = getDocs(tablesCollection);
-      const tablesSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
-
-      const tables = {};
-      tablesSnapshot.forEach((doc) => {
-        // Only include necessary fields to reduce payload
-        const data = doc.data();
-        tables[doc.id] = {
-          id: data.id,
-          orders: Array.isArray(data.orders) ? data.orders : [],
-          total: typeof data.total === 'number' ? data.total : 0,
-          timestamp: data.timestamp
-        };
+      // Add timeout to prevent hanging, properly clearing it to avoid memory leaks
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Firebase timeout')), 60000);
       });
 
-      // Cache the result
-      setCached('tables', tables);
-      return tables;
+      try {
+        const firebasePromise = getDocs(tablesCollection);
+        const tablesSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
+
+        const tables = {};
+        tablesSnapshot.forEach((doc) => {
+          // Only include necessary fields to reduce payload
+          const data = doc.data();
+          tables[doc.id] = {
+            id: data.id,
+            orders: Array.isArray(data.orders) ? data.orders : [],
+            total: typeof data.total === 'number' ? data.total : 0,
+            timestamp: data.timestamp
+          };
+        });
+
+        // Cache the result
+        setCached('tables', tables);
+        return tables;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
     });
   } catch (error) {
     console.error('Error getting tables:', error);
@@ -333,13 +338,20 @@ export const updateTable = async (tableId, tableData) => {
 
           // Monitor the operation
           await monitorFirebaseOperation('updateTable', async () => {
-            // Add timeout to prevent hanging
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Firebase timeout')), 60000)
-            );
+            // Add timeout to prevent hanging, clearing it to avoid memory leaks
+            let timeoutId;
+            const timeoutPromise = new Promise((_, reject) => {
+              timeoutId = setTimeout(() => reject(new Error('Firebase timeout')), 60000);
+            });
 
-            const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData);
-            await Promise.race([firebasePromise, timeoutPromise]);
+            try {
+              // Use merge: true to avoid completely overwriting the document and losing data 
+              // from concurrent updates by other waiters
+              const firebasePromise = setDoc(doc(tablesCollection, stringTableId), tableData, { merge: true });
+              await Promise.race([firebasePromise, timeoutPromise]);
+            } finally {
+              if (timeoutId) clearTimeout(timeoutId);
+            }
           });
         } catch (error) {
           console.error('Error updating table:', error);
@@ -791,31 +803,36 @@ export const getAllMenuItems = async () => {
     }
 
     return await monitorFirebaseOperation('getAllMenuItems', async () => {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase timeout')), 30000)
-      );
-
-      const firebasePromise = getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
-      const menuItemsSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
-
-      const menuItems = [];
-      menuItemsSnapshot.forEach((doc) => {
-        // Only include necessary fields to reduce payload
-        const data = doc.data();
-        menuItems.push({
-          id: doc.id,
-          name: data.name || '',
-          price: typeof data.price === 'number' ? data.price : 0,
-          available: data.available !== undefined ? data.available : true,
-          sequence: typeof data.sequence === 'number' ? data.sequence : 0,
-          category: data.category || ''
-        });
+      // Add timeout to prevent hanging, properly clearing it to avoid memory leaks
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Firebase timeout')), 30000);
       });
 
-      // Cache the result
-      setCached('menuItems', menuItems);
-      return menuItems;
+      try {
+        const firebasePromise = getDocs(query(menuItemsCollection, orderBy('sequence', 'asc')));
+        const menuItemsSnapshot = await Promise.race([firebasePromise, timeoutPromise]);
+
+        const menuItems = [];
+        menuItemsSnapshot.forEach((doc) => {
+          // Only include necessary fields to reduce payload
+          const data = doc.data();
+          menuItems.push({
+            id: doc.id,
+            name: data.name || '',
+            price: typeof data.price === 'number' ? data.price : 0,
+            available: data.available !== undefined ? data.available : true,
+            sequence: typeof data.sequence === 'number' ? data.sequence : 0,
+            category: data.category || ''
+          });
+        });
+
+        // Cache the result
+        setCached('menuItems', menuItems);
+        return menuItems;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
     });
   } catch (error) {
     console.error('Error getting menu items:', error);

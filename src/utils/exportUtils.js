@@ -13,11 +13,17 @@ export const generateDataExport = async () => {
         };
 
         const collectionsToExport = [
-            'tables',          // Active tables
-            'history',         // Sales history
-            'menu_items',      // Menu
-            'inventory',      // Inventory
-            'POSConfig'       // Store settings
+            'tables',            // Active tables
+            'history',           // Sales history
+            'menuItems',         // Menu
+            'inventory_items',   // Inventory definitions
+            'recipes',           // Recipe blueprints
+            'purchase_records',  // Inventory restocks
+            'waste_entries',     // Spoilage logs
+            'usage_logs',        // Consumption metrics
+            'settings',          // Store configuration (POSConfig, features, etc)
+            'shifts',            // Shift history
+            'daily_metrics'      // Analytics
         ];
 
         for (const collectionName of collectionsToExport) {
@@ -25,7 +31,7 @@ export const generateDataExport = async () => {
             const querySnapshot = await getDocs(collection(db, collectionName));
 
             const collectionData = [];
-            querySnapshot.forEach((doc) => {
+            for (const doc of querySnapshot.docs) {
                 // Get doc data verbatim
                 const docData = doc.data();
 
@@ -36,11 +42,32 @@ export const generateDataExport = async () => {
                     }
                 }
 
-                collectionData.push({
+                const docObj = {
                     id: doc.id,
                     ...docData
-                });
-            });
+                };
+
+                // CRITICAL: Subcollections are NOT fetched automatically by getDocs on the parent.
+                // If this is a shift, we must manually fetch its payouts subcollection.
+                if (collectionName === 'shifts') {
+                    const payoutsSnap = await getDocs(collection(db, 'shifts', doc.id, 'payouts'));
+                    const payoutsArray = [];
+                    payoutsSnap.forEach(pDoc => {
+                        const pData = pDoc.data();
+                        for (let k in pData) {
+                            if (pData[k] && typeof pData[k] === 'object' && pData[k].toDate) {
+                                pData[k] = pData[k].toDate().toISOString();
+                            }
+                        }
+                        payoutsArray.push({ id: pDoc.id, ...pData });
+                    });
+                    if (payoutsArray.length > 0) {
+                        docObj._payouts_subcollection = payoutsArray;
+                    }
+                }
+
+                collectionData.push(docObj);
+            }
 
             exportData.data[collectionName] = collectionData;
         }

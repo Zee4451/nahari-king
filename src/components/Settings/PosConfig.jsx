@@ -3,12 +3,17 @@ import styles from '../SettingsPage.module.css';
 import { getPaymentMethods, updatePaymentMethods } from '../../services/shiftService';
 import { generateDataExport, downloadJsonFile } from '../../utils/exportUtils';
 import { performFactoryReset } from '../../utils/clearUtils';
+import { importDataToFirestore } from '../../utils/importUtils';
 
 const PosConfig = () => {
     const [paymentMethods, setPaymentMethods] = useState(['Cash', 'UPI']);
     const [newPaymentMethod, setNewPaymentMethod] = useState('');
     const [isUpdatingMethods, setIsUpdatingMethods] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+
+    // Import State
+    const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState('');
 
     // Factory Reset State
     const [isResetting, setIsResetting] = useState(false);
@@ -26,6 +31,48 @@ const PosConfig = () => {
             alert('Failed to export data. Please check the console for details.');
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const handleImportData = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Reset the input so the same file can be selected again if needed
+        event.target.value = null;
+
+        if (!window.confirm(`Warning: Importing data will overwrite existing documents with the same IDs. Are you sure you want to proceed?`)) {
+            return;
+        }
+
+        setIsImporting(true);
+        setImportProgress('Reading file...');
+
+        try {
+            const reader = new FileReader();
+
+            // Set up our promise manually since FileReader is callback based
+            const fileContent = await new Promise((resolve, reject) => {
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error("Error reading file"));
+                reader.readAsText(file);
+            });
+
+            await importDataToFirestore(fileContent, (msg) => {
+                setImportProgress(msg);
+            });
+
+            setTimeout(() => {
+                setImportProgress('Import Finished!');
+                window.location.reload(); // Refresh to show new data
+            }, 1500);
+
+        } catch (error) {
+            console.error(error);
+            alert(`Import Failed: ${error.message}`);
+            setImportProgress('');
+        } finally {
+            setIsImporting(false);
         }
     };
 
@@ -160,10 +207,47 @@ const PosConfig = () => {
                 </button>
             </div>
 
+            <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: 'var(--card-bg)', marginTop: '2rem' }}>
+                <h3>Import Data</h3>
+                <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem' }}>
+                    Restore POS data from a previous JSON export file. This handles recovering accidentally deleted menus, tables, and settings.
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    {/* Hidden file input controlled by the button */}
+                    <input
+                        type="file"
+                        accept=".json"
+                        id="import-backup-file"
+                        style={{ display: 'none' }}
+                        onChange={handleImportData}
+                        disabled={isImporting}
+                    />
+                    <label
+                        htmlFor="import-backup-file"
+                        className={styles['primary-btn'] || 'primary-btn'}
+                        style={{
+                            backgroundColor: '#28a745',
+                            cursor: isImporting ? 'not-allowed' : 'pointer',
+                            opacity: isImporting ? 0.7 : 1,
+                            margin: 0
+                        }}
+                    >
+                        {isImporting ? 'Importing...' : 'Select Backup File'}
+                    </label>
+
+                    {importProgress && (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>
+                            {importProgress}
+                        </span>
+                    )}
+                </div>
+            </div>
+
             <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: '#fff3f3', border: '1px solid #dc3545', marginTop: '2rem' }}>
                 <h3 style={{ color: '#dc3545' }}>⚠️ DANGER ZONE: Factory Reset</h3>
                 <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem', color: '#c82333' }}>
-                    This action will permanently delete all POS data including tables, sales history, generic settings, menus, and inventory. It cannot be undone. You will be forced to download a data backup before deletion.
+                    This action will permanently delete sales history, inventory, shift data, and metrics. Active tables and menu setups will NOT be deleted. You will be forced to download a data backup before deletion.
                 </p>
 
                 <div style={{ padding: '15px', backgroundColor: '#ffdede', borderRadius: '4px', marginBottom: '15px' }}>

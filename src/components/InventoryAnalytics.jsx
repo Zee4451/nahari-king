@@ -28,7 +28,7 @@ const InventoryAnalytics = () => {
     const [dailyMetrics, setDailyMetrics] = useState([]);
 
     // Date Range State
-    const [datePreset, setDatePreset] = useState('7days');
+    const [datePreset, setDatePreset] = useState('today');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
 
@@ -239,10 +239,10 @@ const InventoryAnalytics = () => {
                 date: dateStr
             };
 
-            // Developer Note: Owner must replace these before production!
-            const SERVICE_ID = "service_ez8md2s";
-            const TEMPLATE_ID = "template_jv2f6sx";
-            const PUBLIC_KEY = "wJJ-8VHUbVzl6eVsn";
+            // Developer Note: Setup EmailJS keys in .env
+            const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+            const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+            const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
             await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
             setReportMessage({ text: `Report sent for ${dateStr} successfully!`, type: 'success' });

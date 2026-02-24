@@ -6,6 +6,7 @@ import { getPaymentMethods } from '../../services/shiftService';
 const CheckoutModal = () => {
     const { checkoutModal, setCheckoutModal, clearOrder, clearTable } = useTableContext();
     const [paymentMethods, setPaymentMethods] = useState(['Cash', 'UPI']);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const loadMethods = async () => {
@@ -20,11 +21,10 @@ const CheckoutModal = () => {
     if (!checkoutModal.isOpen) return null;
 
     const handleCheckoutSubmit = async (paymentMethod) => {
+        if (isSubmitting) return;
         const { type, targetId, targetTableId, itemsToClear } = checkoutModal;
 
-        // Optimistic UI: Close modal immediately
-        setCheckoutModal({ isOpen: false, type: null, targetId: null, targetTableId: null, total: 0, itemsToClear: null });
-
+        setIsSubmitting(true);
         try {
             if (type === 'order') {
                 const { orderToClear } = itemsToClear;
@@ -35,10 +35,9 @@ const CheckoutModal = () => {
                     paymentMethod,
                     timestamp: new Date().toLocaleString()
                 };
-                // Fire optimistic clear instantly
+                // Wait for network confirmation before clearing UI
+                await addHistoryFirebase(historyEntry);
                 clearOrder(targetTableId, targetId);
-                // Background network request
-                addHistoryFirebase(historyEntry).catch(console.error);
             } else if (type === 'table') {
                 const { table } = itemsToClear;
                 const historyEntry = {
@@ -49,13 +48,18 @@ const CheckoutModal = () => {
                     paymentMethod,
                     timestamp: new Date().toLocaleString()
                 };
-                // Fire optimistic clear instantly
+                // Wait for network confirmation before clearing UI
+                await addHistoryFirebase(historyEntry);
                 clearTable(targetId);
-                // Background network request
-                addHistoryFirebase(historyEntry).catch(console.error);
             }
+
+            // Close modal only on success
+            setCheckoutModal({ isOpen: false, type: null, targetId: null, targetTableId: null, total: 0, itemsToClear: null });
         } catch (error) {
             console.error("Checkout error:", error);
+            alert("Checkout failed. Please check your connection and try again.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 

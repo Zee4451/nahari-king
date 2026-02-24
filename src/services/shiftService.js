@@ -93,9 +93,18 @@ export const addPayout = async (shiftId, amount, reason, type = 'other') => {
                 // Deduct from expected cash
                 const currentExpected = shiftDoc.data().calculatedTotals?.expectedCash || 0;
 
+                // 1. Update the shift's expected cash
                 transaction.update(shiftRef, {
-                    payouts: arrayUnion(payoutObj),
                     'calculatedTotals.expectedCash': currentExpected - Number(amount)
+                });
+
+                // 2. Add the payout to the subcollection
+                const payoutRef = doc(collection(db, 'shifts', shiftId, 'payouts'));
+                transaction.set(payoutRef, {
+                    amount: Number(amount),
+                    reason: reason,
+                    type: type,
+                    timestamp: serverTimestamp() // Safe because it's a dedicated doc
                 });
             });
 

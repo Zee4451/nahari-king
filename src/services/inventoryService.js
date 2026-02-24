@@ -369,12 +369,12 @@ export async function executeProduction(recipe, targetQuantity, inventoryItems) 
 
     const batch = writeBatch(db);
 
-    // 1. Deduct each ingredient from inventory
+    // 1. Deduct each ingredient from inventory using atomic operations
     for (const ingredient of bom.scaledIngredients) {
         const itemRef = doc(db, 'inventory_items', ingredient.inventoryItemId);
-        const newStock = ingredient.currentStock - ingredient.requiredQty;
+        // Use increment with negative value for atomic deduction, avoiding race conditions
         batch.update(itemRef, {
-            currentStock: Math.round(newStock * 1000) / 1000,
+            currentStock: increment(-ingredient.requiredQty),
             lastUpdated: serverTimestamp()
         });
     }

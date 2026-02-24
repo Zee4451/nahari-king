@@ -18,11 +18,15 @@ export const performFactoryReset = async (
 
         // Collections to wipe
         const collectionsToWipe = [
-            'tables',
             'history',
-            'inventory',
-            'menu_items',
-            'POSConfig'
+            'inventory_items',
+            'recipes',
+            'purchase_records',
+            'waste_entries',
+            'usage_logs',
+            'settings',
+            'shifts',
+            'daily_metrics'
         ];
 
         for (const collectionName of collectionsToWipe) {
