@@ -254,8 +254,23 @@ const CheckoutModal = () => {
                             )}
 
                             <p style={{ margin: '6px 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                                Point any mobile camera or Google Lens to view live receipt
+                                Scan with any mobile camera or Google Lens
                             </p>
+                            <div style={{ marginTop: '6px' }}>
+                                <a
+                                    href={getDigitalReceiptUrl(completedReceipt || receiptData)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        fontSize: '0.78rem',
+                                        color: '#2563eb',
+                                        fontWeight: 600,
+                                        textDecoration: 'underline'
+                                    }}
+                                >
+                                    🔗 Open Digital Receipt in New Tab
+                                </a>
+                            </div>
                         </div>
 
                         {/* WhatsApp Sharing Row */}
@@ -419,7 +434,7 @@ const CheckoutModal = () => {
                                         style={{ width: '160px', height: '160px', borderRadius: '6px', margin: '0 auto' }}
                                     />
                                 )}
-                                <div style={{ marginTop: '6px' }}>
+                                <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
                                     <button
                                         type="button"
                                         onClick={handleCopyLink}
@@ -433,8 +448,21 @@ const CheckoutModal = () => {
                                             textDecoration: 'underline'
                                         }}
                                     >
-                                        {copiedLink ? '✓ Receipt Link Copied!' : 'Copy Digital Receipt Link'}
+                                        {copiedLink ? '✓ Receipt Link Copied!' : '📋 Copy Link'}
                                     </button>
+                                    <a
+                                        href={getDigitalReceiptUrl(receiptData)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                            color: '#2563eb',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                            textDecoration: 'underline'
+                                        }}
+                                    >
+                                        🔗 Test Open
+                                    </a>
                                 </div>
                             </div>
                         )}

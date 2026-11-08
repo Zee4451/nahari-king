@@ -6,13 +6,15 @@ import QRCode from 'qrcode';
 export const encodeReceiptData = (receipt) => {
     try {
         const json = JSON.stringify(receipt);
-        // Encode UTF-8 cleanly
         const utf8Bytes = new TextEncoder().encode(json);
         let binary = '';
         for (let i = 0; i < utf8Bytes.length; i++) {
             binary += String.fromCharCode(utf8Bytes[i]);
         }
-        return encodeURIComponent(btoa(binary));
+        return btoa(binary)
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
     } catch (e) {
         console.error('Error encoding receipt data:', e);
         return '';
@@ -24,8 +26,18 @@ export const encodeReceiptData = (receipt) => {
  */
 export const decodeReceiptData = (encodedStr) => {
     try {
-        const decoded = decodeURIComponent(encodedStr);
-        const binary = atob(decoded);
+        if (!encodedStr) return null;
+        let base64 = String(encodedStr)
+            .replace(/-/g, '+')
+            .replace(/_/g, '/')
+            .replace(/ /g, '+');
+
+        // Restore padding
+        while (base64.length % 4 !== 0) {
+            base64 += '=';
+        }
+
+        const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
             bytes[i] = binary.charCodeAt(i);
@@ -39,27 +51,35 @@ export const decodeReceiptData = (encodedStr) => {
 };
 
 /**
- * Generates the full digital receipt link
+ * Generates the full digital receipt link.
+ * ALWAYS uses the live production URL if running on localhost,
+ * so that mobile phones scanning the QR code from the laptop screen can actually reach the page!
  */
 export const getDigitalReceiptUrl = (receiptData) => {
-    const origin = typeof window !== 'undefined' && window.location.origin
-        ? window.location.origin
-        : 'https://nahari-king.vercel.app';
+    let origin = 'https://nahari-king.vercel.app';
+    if (typeof window !== 'undefined' && window.location.origin) {
+        const host = window.location.hostname;
+        // If not localhost or 127.0.0.1, use current origin
+        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+            origin = window.location.origin;
+        }
+    }
     const payload = encodeReceiptData(receiptData);
     return `${origin}/receipt?d=${payload}`;
 };
 
 /**
- * Generates a DataURL QR code for a given receipt
+ * Generates a high-quality DataURL QR code for a given receipt
  */
 export const generateReceiptQRCode = async (receiptData) => {
     const url = getDigitalReceiptUrl(receiptData);
     try {
         return await QRCode.toDataURL(url, {
-            width: 260,
-            margin: 1,
+            width: 280,
+            margin: 2,
+            errorCorrectionLevel: 'M',
             color: {
-                dark: '#0f172a',
+                dark: '#000000',
                 light: '#ffffff'
             }
         });
@@ -111,7 +131,7 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl) => {
         lines.push(`🍽️ Dine-In Subtotal: ₹${dineInSubtotal.toFixed(2)}`);
         lines.push(`🛍️ Takeaway Parcel: ₹${parcelSubtotal.toFixed(2)}`);
     }
-    lines.push(`💰 *GRAND TOTAL: ₹${total.toFixed(2)}*`);
+    lines.push(`💰 *GRAND TOTAL: ₹${Number(total).toFixed(2)}*`);
     lines.push(`------------------------------------`);
 
     if (digitalReceiptUrl) {

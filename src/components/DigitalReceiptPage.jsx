@@ -9,15 +9,24 @@ const DigitalReceiptPage = () => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const payload = searchParams.get('d');
+        let payload = searchParams.get('d');
+        if (!payload && typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            payload = urlParams.get('d');
+            if (!payload && window.location.hash) {
+                const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+                payload = hashParams.get('d');
+            }
+        }
+
         if (!payload) {
-            setError('No receipt data found. Please ask the cashier for a fresh receipt link.');
+            setError('No receipt data found in link. Please ask the cashier to scan or share again.');
             return;
         }
 
         const data = decodeReceiptData(payload);
         if (!data) {
-            setError('Invalid or corrupted receipt link.');
+            setError('Could not decode receipt details. Please scan the QR code again.');
             return;
         }
 
