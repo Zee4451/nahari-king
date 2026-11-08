@@ -49,7 +49,11 @@ const KotPrintModal = ({
   const kotNumber = `KOT-${isParcelTable ? 'P' : 'T'}${String(tableId).replace('P-', '')}-${now.getMinutes()}${now.getSeconds()}`;
 
   const handlePrint = () => {
+    document.body.classList.add('printing-kot');
     window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-kot');
+    }, 1000);
   };
 
   return (

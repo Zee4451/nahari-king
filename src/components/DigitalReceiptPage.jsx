@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decodeReceiptData, openWhatsAppReceipt } from '../utils/receiptHelper';
 import { Printer, Share2, CheckCircle2, ArrowLeft } from 'lucide-react';
+import './DigitalReceiptPage.css';
 
 const DigitalReceiptPage = () => {
     const [searchParams] = useSearchParams();
@@ -107,7 +108,7 @@ const DigitalReceiptPage = () => {
     const hasBothSubtotals = dineInSubtotal > 0 && parcelSubtotal > 0;
 
     return (
-        <div style={{
+        <div className="digital-receipt-wrapper" style={{
             minHeight: '100vh',
             backgroundColor: '#f1f5f9',
             padding: '1.5rem 1rem',
@@ -117,7 +118,7 @@ const DigitalReceiptPage = () => {
             fontFamily: 'system-ui, -apple-system, sans-serif'
         }}>
             {/* Top Action Bar (Print / Share) */}
-            <div style={{
+            <div className="receipt-top-bar no-print" style={{
                 maxWidth: '440px',
                 width: '100%',
                 display: 'flex',
@@ -173,7 +174,7 @@ const DigitalReceiptPage = () => {
             </div>
 
             {/* Receipt Card (Paper Slip Aesthetic) */}
-            <div style={{
+            <div id="printable-digital-receipt" className="printable-receipt-card" style={{
                 maxWidth: '440px',
                 width: '100%',
                 backgroundColor: '#ffffff',
@@ -183,7 +184,7 @@ const DigitalReceiptPage = () => {
                 overflow: 'hidden'
             }}>
                 {/* Header Band */}
-                <div style={{
+                <div className="receipt-header-band" style={{
                     backgroundColor: '#0f172a',
                     color: '#ffffff',
                     padding: '1.5rem 1.25rem',
@@ -192,10 +193,10 @@ const DigitalReceiptPage = () => {
                     <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.5px' }}>
                         NAHARI KING
                     </h1>
-                    <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '4px' }}>
+                    <div className="receipt-header-subtitle" style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '4px' }}>
                         Authentic Nalli Nihari & Mughlai Cuisine
                     </div>
-                    <div style={{
+                    <div className="receipt-paid-badge" style={{
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
@@ -213,7 +214,7 @@ const DigitalReceiptPage = () => {
                 </div>
 
                 {/* Metadata Row */}
-                <div style={{
+                <div className="receipt-meta-box" style={{
                     padding: '1rem 1.25rem',
                     borderBottom: '1px dashed #cbd5e1',
                     backgroundColor: '#fafafa',

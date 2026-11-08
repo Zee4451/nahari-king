@@ -286,14 +286,17 @@
    DIRECT THERMAL PRINT STYLES (@media print)
    ======================================================== */
 @media print {
-  /* Hide everything on page */
-  body * {
+  /* Only hide elements when actively printing KOT ticket */
+  body.printing-kot *:not(#printable-digital-receipt):not(#printable-digital-receipt *),
+  body:has(#printable-kot-ticket) *:not(#printable-digital-receipt):not(#printable-digital-receipt *) {
     visibility: hidden;
   }
 
-  /* Show only the KOT thermal ticket */
-  #printable-kot-ticket,
-  #printable-kot-ticket * {
+  /* Show the KOT thermal ticket */
+  body.printing-kot #printable-kot-ticket,
+  body.printing-kot #printable-kot-ticket *,
+  body:has(#printable-kot-ticket) #printable-kot-ticket,
+  body:has(#printable-kot-ticket) #printable-kot-ticket * {
     visibility: visible;
   }
 
@@ -309,14 +312,15 @@
     background: transparent;
     color: #000000;
     font-size: 11pt;
+    page: kot-ticket;
   }
 
   .no-print {
     display: none !important;
   }
+}
 
-  @page {
-    size: 80mm auto;
-    margin: 0;
-  }
+@page kot-ticket {
+  size: 80mm auto;
+  margin: 0;
 }

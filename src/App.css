@@ -31,6 +31,21 @@ body {
   flex-direction: column;
 }
 
+@media print {
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+  #root, .app {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+}
+
 .app {
   min-height: 100vh;
   background-color: #ffffff;
