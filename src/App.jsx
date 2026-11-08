@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import TablesPage from './components/TablesPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginPage from './components/LoginPage';
+import DigitalReceiptPage from './components/DigitalReceiptPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 import './components/ProtectedRoute.css';
@@ -31,6 +32,7 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/receipt" element={<DigitalReceiptPage />} />
 
             {/* Protected routes - authentication required */}
             <Route path="/" element={
