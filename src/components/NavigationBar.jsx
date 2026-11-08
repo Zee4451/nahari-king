@@ -59,6 +59,7 @@ const NavigationBar = ({ currentPage }) => {
 
         <div className={`nav-links-dropdown ${isMenuOpen ? 'open' : ''}`}>
           <Link to="/tables" className={`nav-link ${currentPage === 'tables' ? 'active' : ''}`} onClick={closeMenu}>Tables</Link>
+          <Link to="/history" className={`nav-link ${currentPage === 'history' ? 'active' : ''}`} onClick={closeMenu}>History</Link>
           <Link to="/inventory" className={`nav-link ${currentPage === 'inventory' ? 'active' : ''}`} onClick={closeMenu}>Inventory</Link>
           <Link to="/recipes" className={`nav-link ${currentPage === 'recipes' ? 'active' : ''}`} onClick={closeMenu}>Recipes</Link>
           <Link to="/analytics" className={`nav-link ${currentPage === 'analytics' ? 'active' : ''}`} onClick={closeMenu}>Analytics</Link>
