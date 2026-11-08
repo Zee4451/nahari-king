@@ -797,7 +797,7 @@ const TableSection = () => {
     return consolidatedTableItems.reduce((s, it) => s + (it.quantity || 0), 0);
   }, [consolidatedTableItems]);
 
-  const handleConsolidatedQuantityChange = (itemId, newQuantity) => {
+  const handleConsolidatedQuantityChange = useCallback((itemId, newQuantity) => {
     if (newQuantity <= 0) {
       currentTableData.orders.forEach(ord => {
         if (ord.items && ord.items.some(it => it.id === itemId)) {
@@ -827,7 +827,8 @@ const TableSection = () => {
           ...menuItem,
           id: targetItemId,
           menuItemId: baseId,
-          isParcel: isParcelItem
+          isParcel: isParcelItem,
+          price: Number(menuItem.price) || 0
         };
         addItemToOrder(currentTable, effectiveActiveOrder.id, itemToInsert);
         if (diff > 1) {
@@ -846,9 +847,9 @@ const TableSection = () => {
         updateItemQuantity(currentTable, orderWithItem.id, itemId, newOrdQty);
       }
     }
-  };
+  }, [currentTableData.orders, consolidatedTableItems, items, menuItems, effectiveActiveOrder, currentTable, updateItemQuantity, addItemToOrder]);
 
-  const moveItemBetweenDineInAndParcel = (itemId) => {
+  const moveItemBetweenDineInAndParcel = useCallback((itemId) => {
     const isCurrentlyParcel = String(itemId).endsWith('_parcel');
     const baseId = String(itemId).replace('_parcel', '');
 
@@ -882,36 +883,27 @@ const TableSection = () => {
         ...menuItem,
         id: targetItemId,
         menuItemId: baseId,
-        isParcel: !isCurrentlyParcel
+        isParcel: !isCurrentlyParcel,
+        price: Number(menuItem.price) || 0
       };
       addItemToOrder(currentTable, sourceOrder.id, itemToInsert);
     } else {
       updateItemQuantity(currentTable, sourceOrder.id, targetItemId, (targetItemInOrder.quantity || 0) + 1);
     }
-  };
+  }, [currentTableData.orders, items, menuItems, currentTable, updateItemQuantity, addItemToOrder]);
 
-  // Track if we've already created an order for this table during this session
-  const lastTableRef = useRef(currentTable);
-
+  // Ensure table has at least 1 order round without race conditions
   useEffect(() => {
     if (currentTableData.orders.length === 0) {
-      const timer = setTimeout(() => {
-        addOrderToTable(currentTable);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [currentTable, currentTableData.orders.length, addOrderToTable]);
-
-  useEffect(() => {
-    if (lastTableRef.current !== currentTable && currentTableData.orders.length === 0) {
       addOrderToTable(currentTable);
     }
-    lastTableRef.current = currentTable;
   }, [currentTable, currentTableData.orders.length, addOrderToTable]);
 
-  const handleAddOrder = () => addOrderToTable(currentTable);
+  const handleAddOrder = useCallback(() => {
+    addOrderToTable(currentTable);
+  }, [addOrderToTable, currentTable]);
 
-  const handleQuantityChange = (orderId, rawItemId, newQuantity, explicitParcel) => {
+  const handleQuantityChange = useCallback((orderId, rawItemId, newQuantity, explicitParcel) => {
     const { baseId, isParcel: rawIsParcel } = parseItemId(rawItemId);
     const activeItems = items.length > 0 ? items : menuItems;
     const menuItem = activeItems.find(item => item.id === baseId);
@@ -919,7 +911,7 @@ const TableSection = () => {
 
     const table = tables[currentTable];
     if (!table) return;
-    const order = table.orders.find(ord => ord.id === orderId);
+    const order = (table.orders || []).find(ord => ord.id === orderId);
     if (!order) return;
 
     const isParcelTable = isParcelId(currentTable);
@@ -928,7 +920,7 @@ const TableSection = () => {
       : (rawIsParcel || isParcelTable || punchDestination === 'parcel');
 
     const targetItemId = makeItemId(baseId, isTargetParcel);
-    const existingItem = order.items.find(item => {
+    const existingItem = (order.items || []).find(item => {
       if (item.id === targetItemId || item.id === rawItemId) return true;
       if (isParcelTable) {
         const { baseId: itBase } = parseItemId(item.id);
@@ -959,7 +951,7 @@ const TableSection = () => {
     } else {
       updateItemQuantity(currentTable, orderId, itemIdToUpdate, newQuantity);
     }
-  };
+  }, [items, menuItems, tables, currentTable, punchDestination, updateItemQuantity, addItemToOrder]);
 
   // Use Context `initiateCheckoutOrder` so the Checkout Modal handles the rest
   const handleClearOrder = (orderId) => {
@@ -1041,28 +1033,35 @@ const TableSection = () => {
   };
 
   // Accurate table occupancy, item count and live total helper
-  const getTableOccupiedInfo = useCallback((tableId) => {
-    const table = tables[tableId];
-    if (!table) return { isOccupied: false, total: 0, itemCount: 0, hasParcel: false };
-    const total = Number(table.total) || 0;
-    let itemCount = 0;
-    let hasParcel = false;
-    if (Array.isArray(table.orders)) {
-      table.orders.forEach(order => {
-        if (Array.isArray(order.items)) {
-          order.items.forEach(it => {
-            const qty = Number(it.quantity) || 0;
-            itemCount += qty;
-            if (qty > 0 && (it.isParcel || String(it.id).endsWith('_parcel'))) {
-              hasParcel = true;
-            }
-          });
-        }
-      });
-    }
-    const isOccupied = total > 0 || itemCount > 0;
-    return { isOccupied, total, itemCount, hasParcel };
+  const tableStatsMap = useMemo(() => {
+    const map = {};
+    Object.keys(tables || {}).forEach(id => {
+      const table = tables[id];
+      if (!table) return;
+      const total = Number(table.total) || 0;
+      let itemCount = 0;
+      let hasParcel = false;
+      if (Array.isArray(table.orders)) {
+        table.orders.forEach(order => {
+          if (Array.isArray(order.items)) {
+            order.items.forEach(it => {
+              const qty = Number(it.quantity) || 0;
+              itemCount += qty;
+              if (qty > 0 && (it.isParcel || String(it.id).endsWith('_parcel'))) {
+                hasParcel = true;
+              }
+            });
+          }
+        });
+      }
+      map[id] = { isOccupied: total > 0 || itemCount > 0, total, itemCount, hasParcel };
+    });
+    return map;
   }, [tables]);
+
+  const getTableOccupiedInfo = useCallback((tableId) => {
+    return tableStatsMap[tableId] || { isOccupied: false, total: 0, itemCount: 0, hasParcel: false };
+  }, [tableStatsMap]);
 
   // Dine-In summary
   const dineInSummary = useMemo(() => {

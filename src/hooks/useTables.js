@@ -6,6 +6,63 @@ export const useTables = () => {
     const [loading, setLoading] = useState(true);
     const tablesRef = useRef({});
 
+    // Debounced remote sync queue to avoid lagging the UI on rapid taps
+    const pendingSyncTimers = useRef({});
+    const pendingTables = useRef({});
+
+    const syncTableDebounced = useCallback((tableId, tableData) => {
+        if (pendingSyncTimers.current[tableId]) {
+            clearTimeout(pendingSyncTimers.current[tableId]);
+        }
+        pendingTables.current[tableId] = tableData;
+        pendingSyncTimers.current[tableId] = setTimeout(async () => {
+            const dataToSave = pendingTables.current[tableId];
+            delete pendingSyncTimers.current[tableId];
+            delete pendingTables.current[tableId];
+            if (dataToSave) {
+                try {
+                    await updateTable(tableId, dataToSave);
+                } catch (err) {
+                    console.error(`Error syncing table ${tableId}:`, err);
+                }
+            }
+        }, 280);
+    }, []);
+
+    const flushTableSync = useCallback(async (tableId) => {
+        if (tableId) {
+            if (pendingSyncTimers.current[tableId]) {
+                clearTimeout(pendingSyncTimers.current[tableId]);
+                delete pendingSyncTimers.current[tableId];
+            }
+            const dataToSave = pendingTables.current[tableId];
+            delete pendingTables.current[tableId];
+            if (dataToSave) {
+                try {
+                    await updateTable(tableId, dataToSave);
+                } catch (err) {
+                    console.error(`Error flushing table ${tableId}:`, err);
+                }
+            }
+        } else {
+            // Flush all pending
+            const tableIds = Object.keys(pendingSyncTimers.current);
+            for (const id of tableIds) {
+                clearTimeout(pendingSyncTimers.current[id]);
+                delete pendingSyncTimers.current[id];
+                const data = pendingTables.current[id];
+                delete pendingTables.current[id];
+                if (data) {
+                    try {
+                        await updateTable(id, data);
+                    } catch (err) {
+                        console.error(`Error flushing table ${id}:`, err);
+                    }
+                }
+            }
+        }
+    }, []);
+
     useEffect(() => {
         // Initialize with default tables 1-10 if empty
         const defaultTables = {};
@@ -21,7 +78,7 @@ export const useTables = () => {
 
         const unsubscribe = subscribeToTables((updatedTables) => {
             if (Object.keys(updatedTables).length > 0) {
-                // Sanitize any NaN IDs caused by the Math.max bug so users can delete stuck orders
+                // Sanitize any NaN IDs caused by old math bug
                 Object.values(updatedTables).forEach(table => {
                     if (table.orders) {
                         table.orders.forEach((order, index) => {
@@ -32,20 +89,31 @@ export const useTables = () => {
                     }
                 });
 
+                // Preserve local in-flight edits during rapid tapping
+                Object.keys(pendingTables.current).forEach(tId => {
+                    if (pendingTables.current[tId]) {
+                        updatedTables[tId] = pendingTables.current[tId];
+                    }
+                });
+
                 tablesRef.current = updatedTables;
                 setTables(updatedTables);
             }
             setLoading(false);
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => {
+            unsubscribe();
+            // Flush any remaining writes on unmount
+            flushTableSync();
+        };
+    }, [flushTableSync]);
 
     const addOrderToTable = useCallback(async (tableId) => {
+        await flushTableSync(tableId);
         const table = tablesRef.current[tableId];
         if (!table) return;
 
-        // Use a robust string-based ID to prevent NaN math errors.
         const newOrderId = `order-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const newOrder = { id: newOrderId, items: [], total: 0 };
 
@@ -55,13 +123,13 @@ export const useTables = () => {
             id: tableId
         };
 
-        // Optimistic UI Update
+        // Instant local update (0ms UI lag)
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
 
         await updateTable(tableId, updatedTable);
-    }, []);
+    }, [flushTableSync]);
 
     const addItemToOrder = useCallback(async (tableId, orderId, menuItem) => {
         const table = tablesRef.current[tableId];
@@ -97,13 +165,14 @@ export const useTables = () => {
             total: updatedOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0)
         };
 
-        // Optimistic UI Update
+        // Instant local update (0ms UI lag)
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
 
-        await updateTable(tableId, updatedTable);
-    }, []);
+        // Batch rapid taps into single Firestore write
+        syncTableDebounced(tableId, updatedTable);
+    }, [syncTableDebounced]);
 
     const updateItemQuantity = useCallback(async (tableId, orderId, itemId, newQuantity) => {
         if (newQuantity < 0) return;
@@ -141,15 +210,17 @@ export const useTables = () => {
             total: updatedOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0)
         };
 
-        // Optimistic UI Update
+        // Instant local update (0ms UI lag)
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
 
-        await updateTable(tableId, updatedTable);
-    }, []);
+        // Batch rapid taps into single Firestore write
+        syncTableDebounced(tableId, updatedTable);
+    }, [syncTableDebounced]);
 
     const clearOrder = useCallback(async (tableId, orderId) => {
+        await flushTableSync(tableId);
         const table = tablesRef.current[tableId];
         if (!table) return;
 
@@ -166,15 +237,16 @@ export const useTables = () => {
             total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
         };
 
-        // Optimistic UI Update
+        // Instant local update
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
 
         await updateTable(tableId, updatedTable);
-    }, []);
+    }, [flushTableSync]);
 
     const removeOrder = useCallback(async (tableId, orderId) => {
+        await flushTableSync(tableId);
         const table = tablesRef.current[tableId];
         if (!table) return;
 
@@ -185,18 +257,18 @@ export const useTables = () => {
             total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
         };
 
-        // Optimistic UI Update
+        // Instant local update
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
 
         await updateTable(tableId, updatedTable);
-    }, []);
+    }, [flushTableSync]);
 
     const clearTable = useCallback(async (tableId) => {
+        await flushTableSync(tableId);
         const isParcel = String(tableId).startsWith('P-');
         if (isParcel) {
-            // Once paid/settled, delete the completed parcel order from active tables
             delete tablesRef.current[tableId];
             setTables({ ...tablesRef.current });
             await deleteTableFirebase(tableId);
@@ -212,13 +284,13 @@ export const useTables = () => {
             total: 0
         };
 
-        // Optimistic UI Update
+        // Instant local update
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
 
         await updateTable(tableId, updatedTable);
-    }, []);
+    }, [flushTableSync]);
 
     const addNewParcelOrder = useCallback(async () => {
         const existingParcelIds = Object.keys(tablesRef.current)
@@ -264,8 +336,8 @@ export const useTables = () => {
         const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
         tablesRef.current = newlyUpdatedTables;
         setTables(newlyUpdatedTables);
-        await updateTable(tableId, updatedTable);
-    }, []);
+        syncTableDebounced(tableId, updatedTable);
+    }, [syncTableDebounced]);
 
     const addNewTable = useCallback(async (customId) => {
         const existingTableIds = Object.keys(tablesRef.current).map(Number).filter(n => !isNaN(n));
@@ -273,7 +345,6 @@ export const useTables = () => {
         if (customId !== undefined && customId !== null && String(customId).trim() !== '') {
             newTableId = Number(customId);
         } else {
-            // Smart gap fill: find lowest missing positive integer starting from 1
             const idSet = new Set(existingTableIds);
             let candidate = 1;
             while (idSet.has(candidate)) {
@@ -296,6 +367,7 @@ export const useTables = () => {
     }, []);
 
     const deleteTable = useCallback(async (tableId) => {
+        await flushTableSync(tableId);
         const table = tablesRef.current[tableId];
         if (table && table.orders.length > 0) {
             const nonEmptyOrders = table.orders.filter(order => order.total > 0);
@@ -312,7 +384,7 @@ export const useTables = () => {
         }
         await deleteTableFirebase(tableId);
         return true;
-    }, []);
+    }, [flushTableSync]);
 
     return {
         tables,
@@ -327,6 +399,7 @@ export const useTables = () => {
         deleteTable,
         addNewParcelOrder,
         toggleItemParcel,
+        flushTableSync,
         tablesRef
     };
 };

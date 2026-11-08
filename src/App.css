@@ -48,10 +48,31 @@ body {
 
 button {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 button:focus {
   outline: none;
+}
+
+/* Fast touch response (eliminates 300ms mobile delay) & paint containment */
+.quantity-btn,
+.pos-table-card,
+.category-pill,
+.category-view-btn,
+.pos-mode-pill-btn,
+.bill-round-tab,
+.bill-qty-btn,
+.mobile-floating-bill-bar {
+  touch-action: manipulation;
+}
+
+.menu-item-quantity {
+  contain: layout paint;
+}
+
+.pos-table-card {
+  contain: layout paint;
 }
 
 body {
