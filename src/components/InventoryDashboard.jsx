@@ -267,7 +267,7 @@ const InventoryDashboard = () => {
                     </select>
                 </div>
 
-                {/* Inventory Table */}
+                {/* Inventory Table & Mobile Cards */}
                 {filteredInventory.length === 0 ? (
                     <div className={styles['empty-state'] || 'empty-state'}>
                         <p>{inventory.length === 0 ? 'No inventory items yet.' : 'No items match your filter.'}</p>
@@ -276,50 +276,143 @@ const InventoryDashboard = () => {
                         )}
                     </div>
                 ) : (
-                    <div className={styles['data-table-container'] || 'data-table-container'}>
-                        <table className={styles['data-table'] || 'data-table'}>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Category</th>
-                                    <th>Stock</th>
-                                    <th>Unit</th>
-                                    <th>Cost/Unit (₹)</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredInventory.map(item => {
-                                    const status = getStockStatus(item);
-                                    return (
-                                        <tr key={item.id} className={status !== 'ok' ? 'low-stock' : ''}>
-                                            <td><strong>{item.name}</strong></td>
-                                            <td><span className={styles['category-badge'] || 'category-badge'}>{item.category}</span></td>
-                                            <td>{item.currentStock}</td>
-                                            <td>{item.unit}</td>
-                                            <td>₹{(item.costPerUnit || 0).toFixed(2)}</td>
-                                            <td><span className={`stock-badge ${status}`}>{getStockLabel(status)}</span></td>
-                                            <td>
-                                                {purchasingItemId === item.id ? (
+                    <>
+                        {/* Desktop Table View (>= 769px) */}
+                        <div className={styles['data-table-container'] || 'data-table-container'}>
+                            <table className={styles['data-table'] || 'data-table'}>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Category</th>
+                                        <th>Stock</th>
+                                        <th>Unit</th>
+                                        <th>Cost/Unit (₹)</th>
+                                        <th>Status</th>
+                                        <th className={styles['actions-header-cell'] || 'actions-header-cell'}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredInventory.map(item => {
+                                        const status = getStockStatus(item);
+                                        return (
+                                            <tr key={item.id} className={status !== 'ok' ? 'low-stock' : ''}>
+                                                <td><strong>{item.name}</strong></td>
+                                                <td><span className={styles['category-badge'] || 'category-badge'}>{item.category}</span></td>
+                                                <td>{item.currentStock}</td>
+                                                <td>{item.unit}</td>
+                                                <td>₹{(item.costPerUnit || 0).toFixed(2)}</td>
+                                                <td><span className={`stock-badge ${status}`}>{getStockLabel(status)}</span></td>
+                                                <td className={styles['actions-table-cell'] || 'actions-table-cell'}>
+                                                    {purchasingItemId === item.id ? (
+                                                        <InlinePurchaseForm item={item} onSubmit={submitPurchase} onCancel={cancelPurchase} onError={setError} />
+                                                    ) : wastingItemId === item.id ? (
+                                                        <InlineWasteForm item={item} onSubmit={submitWaste} onCancel={cancelWaste} onError={setError} />
+                                                    ) : (
+                                                        <div className={styles['actions-cell'] || 'actions-cell'}>
+                                                            <button type="button" className={`${styles['btn-success'] || 'btn-success'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => startPurchase(item)} title="Add Stock" aria-label={`Add stock for ${item.name}`}>+Stock</button>
+                                                            <button type="button" className={`${styles['btn-danger'] || 'btn-danger'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => startWaste(item)} title="Log Waste" aria-label={`Log waste for ${item.name}`}>Waste</button>
+                                                            <button type="button" className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => openEditModal(item)} title="Edit" aria-label={`Edit ${item.name}`}>Edit</button>
+                                                            <button type="button" className={`${styles['btn-danger'] || 'btn-danger'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => handleDelete(item)} title="Delete" aria-label={`Delete ${item.name}`}>Del</button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Mobile Stacked Cards View (<= 768px) */}
+                        <div className={styles['inventory-cards-list'] || 'inventory-cards-list'} role="region" aria-label="Inventory cards list">
+                            {filteredInventory.map(item => {
+                                const status = getStockStatus(item);
+                                return (
+                                    <div key={`card-${item.id}`} className={`${styles['inventory-mobile-card'] || 'inventory-mobile-card'} ${styles['card-status-' + status] || 'card-status-' + status}`}>
+                                        <div className={styles['mobile-card-header'] || 'mobile-card-header'}>
+                                            <div className={styles['mobile-card-title-wrap'] || 'mobile-card-title-wrap'}>
+                                                <h3 className={styles['mobile-card-name'] || 'mobile-card-name'}>{item.name}</h3>
+                                                <span className={styles['category-badge'] || 'category-badge'}>{item.category}</span>
+                                            </div>
+                                            <span className={`stock-badge ${status}`}>{getStockLabel(status)}</span>
+                                        </div>
+
+                                        <div className={styles['mobile-card-metrics'] || 'mobile-card-metrics'}>
+                                            <div className={styles['mobile-metric-item'] || 'mobile-metric-item'}>
+                                                <span className={styles['mobile-metric-label'] || 'mobile-metric-label'}>Current Stock</span>
+                                                <span className={styles['mobile-metric-val'] || 'mobile-metric-val'}>
+                                                    <strong>{item.currentStock}</strong> <small>{item.unit}</small>
+                                                </span>
+                                            </div>
+                                            <div className={styles['mobile-metric-item'] || 'mobile-metric-item'}>
+                                                <span className={styles['mobile-metric-label'] || 'mobile-metric-label'}>Cost / Unit</span>
+                                                <span className={styles['mobile-metric-val'] || 'mobile-metric-val'}>
+                                                    <strong>₹{(item.costPerUnit || 0).toFixed(2)}</strong>
+                                                </span>
+                                            </div>
+                                            {item.minStockAlert !== undefined && item.minStockAlert !== null && Number(item.minStockAlert) > 0 && (
+                                                <div className={styles['mobile-metric-item'] || 'mobile-metric-item'}>
+                                                    <span className={styles['mobile-metric-label'] || 'mobile-metric-label'}>Low Alert</span>
+                                                    <span className={styles['mobile-metric-val'] || 'mobile-metric-val'}>
+                                                        {item.minStockAlert} {item.unit}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className={styles['mobile-card-actions-wrap'] || 'mobile-card-actions-wrap'}>
+                                            {purchasingItemId === item.id ? (
+                                                <div className={styles['mobile-inline-form-box'] || 'mobile-inline-form-box'}>
+                                                    <div className={styles['mobile-form-title'] || 'mobile-form-title'}>+ Add Stock: {item.name}</div>
                                                     <InlinePurchaseForm item={item} onSubmit={submitPurchase} onCancel={cancelPurchase} onError={setError} />
-                                                ) : wastingItemId === item.id ? (
+                                                </div>
+                                            ) : wastingItemId === item.id ? (
+                                                <div className={styles['mobile-inline-form-box'] || 'mobile-inline-form-box'}>
+                                                    <div className={styles['mobile-form-title'] || 'mobile-form-title'}>Log Waste: {item.name}</div>
                                                     <InlineWasteForm item={item} onSubmit={submitWaste} onCancel={cancelWaste} onError={setError} />
-                                                ) : (
-                                                    <div className={styles['actions-cell'] || 'actions-cell'}>
-                                                        <button className={`${styles['btn-success'] || 'btn-success'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => startPurchase(item)} title="Add Stock">+Stock</button>
-                                                        <button className={`${styles['btn-danger'] || 'btn-danger'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => startWaste(item)} title="Log Waste">Waste</button>
-                                                        <button className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => openEditModal(item)} title="Edit">Edit</button>
-                                                        <button className={`${styles['btn-danger'] || 'btn-danger'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={() => handleDelete(item)} title="Delete">Del</button>
-                                                    </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className={styles['mobile-card-actions'] || 'mobile-card-actions'}>
+                                                    <button
+                                                        type="button"
+                                                        className={`${styles['btn-success'] || 'btn-success'} ${styles['mobile-action-btn'] || 'mobile-action-btn'}`}
+                                                        onClick={() => startPurchase(item)}
+                                                        aria-label={`Add stock for ${item.name}`}
+                                                    >
+                                                        + Stock
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`${styles['btn-warning-outline'] || 'btn-warning-outline'} ${styles['mobile-action-btn'] || 'mobile-action-btn'}`}
+                                                        onClick={() => startWaste(item)}
+                                                        aria-label={`Log waste for ${item.name}`}
+                                                    >
+                                                        Waste
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['mobile-action-btn'] || 'mobile-action-btn'}`}
+                                                        onClick={() => openEditModal(item)}
+                                                        aria-label={`Edit ${item.name}`}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`${styles['btn-danger'] || 'btn-danger'} ${styles['mobile-action-btn'] || 'mobile-action-btn'}`}
+                                                        onClick={() => handleDelete(item)}
+                                                        aria-label={`Delete ${item.name}`}
+                                                    >
+                                                        Del
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
                 )}
 
                 {/* Add/Edit Modal */}

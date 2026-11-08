@@ -23,10 +23,46 @@ export const InlinePurchaseForm = ({ item, onSubmit, onCancel, onError }) => {
 
     return (
         <div className={styles['purchase-inline'] || 'purchase-inline'}>
-            <input type="number" placeholder="Qty" value={qty} onChange={e => setQty(e.target.value)} min="0" step="0.1" disabled={submitting} />
-            <input type="number" placeholder="₹/unit" value={cost} onChange={e => setCost(e.target.value)} min="0" step="0.01" disabled={submitting} />
-            <button className={`${styles['btn-success'] || 'btn-success'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={handleSubmit} disabled={submitting}>{submitting ? '...' : '✓'}</button>
-            <button className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={onCancel} disabled={submitting}>✕</button>
+            <input
+                type="number"
+                placeholder="Qty"
+                value={qty}
+                onChange={e => setQty(e.target.value)}
+                min="0"
+                step="0.1"
+                disabled={submitting}
+                aria-label={`Purchase quantity for ${item.name}`}
+            />
+            <input
+                type="number"
+                placeholder="₹/unit"
+                value={cost}
+                onChange={e => setCost(e.target.value)}
+                min="0"
+                step="0.01"
+                disabled={submitting}
+                aria-label={`Cost per unit for ${item.name}`}
+            />
+            <button
+                type="button"
+                className={`${styles['btn-success'] || 'btn-success'} ${styles['btn-sm'] || 'btn-sm'}`}
+                onClick={handleSubmit}
+                disabled={submitting}
+                aria-label={`Confirm purchase of ${item.name}`}
+                title="Confirm purchase"
+            >
+                {submitting ? '...' : '✓'}
+            </button>
+            <button
+                type="button"
+                className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['btn-sm'] || 'btn-sm'}`}
+                onClick={onCancel}
+                disabled={submitting}
+                aria-label={`Cancel purchase for ${item.name}`}
+                title="Cancel"
+            >
+                ✕
+            </button>
         </div>
     );
 };
@@ -57,10 +93,47 @@ export const InlineWasteForm = ({ item, onSubmit, onCancel, onError }) => {
 
     return (
         <div className={styles['purchase-inline'] || 'purchase-inline'}>
-            <input type="number" placeholder="Qty" value={qty} onChange={e => setQty(e.target.value)} min="0" max={item.currentStock} step="0.1" title="Waste Quantity" disabled={submitting} />
-            <input type="text" placeholder="Reason" value={reason} onChange={e => setReason(e.target.value)} title="Reason for wasting" disabled={submitting} />
-            <button className={`${styles['btn-success'] || 'btn-success'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={handleSubmit} disabled={submitting}>{submitting ? '...' : '✓'}</button>
-            <button className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['btn-sm'] || 'btn-sm'}`} onClick={onCancel} disabled={submitting}>✕</button>
+            <input
+                type="number"
+                placeholder="Qty"
+                value={qty}
+                onChange={e => setQty(e.target.value)}
+                min="0"
+                max={item.currentStock}
+                step="0.1"
+                title="Waste Quantity"
+                disabled={submitting}
+                aria-label={`Waste quantity for ${item.name}`}
+            />
+            <input
+                type="text"
+                placeholder="Reason"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                title="Reason for wasting"
+                disabled={submitting}
+                aria-label={`Waste reason for ${item.name}`}
+            />
+            <button
+                type="button"
+                className={`${styles['btn-success'] || 'btn-success'} ${styles['btn-sm'] || 'btn-sm'}`}
+                onClick={handleSubmit}
+                disabled={submitting}
+                aria-label={`Confirm waste for ${item.name}`}
+                title="Confirm waste"
+            >
+                {submitting ? '...' : '✓'}
+            </button>
+            <button
+                type="button"
+                className={`${styles['btn-secondary'] || 'btn-secondary'} ${styles['btn-sm'] || 'btn-sm'}`}
+                onClick={onCancel}
+                disabled={submitting}
+                aria-label={`Cancel waste for ${item.name}`}
+                title="Cancel"
+            >
+                ✕
+            </button>
         </div>
     );
 };

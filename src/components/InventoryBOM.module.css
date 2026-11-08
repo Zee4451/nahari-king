@@ -834,3 +834,268 @@
   padding: 8px 12px;
   font-size: 14px;
 }
+
+/* ================================================
+   BUTTON OUTLINES & ACCESSIBLE FOCUS
+   ================================================ */
+
+.btn-warning-outline {
+  padding: 0.4rem 0.8rem;
+  background-color: #fff9e6;
+  color: #b78103;
+  border: 1px solid #ffd166;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-warning-outline:hover {
+  background-color: #ffeedb;
+  border-color: #e67700;
+  transform: translateY(-1px);
+}
+
+.btn-danger-outline {
+  padding: 0.4rem 0.8rem;
+  background-color: #fff5f5;
+  color: #dc3545;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-danger-outline:hover {
+  background-color: #fed7d7;
+  border-color: #e53e3e;
+  transform: translateY(-1px);
+}
+
+.btn-primary:focus-visible,
+.btn-success:focus-visible,
+.btn-danger:focus-visible,
+.btn-secondary:focus-visible,
+.btn-warning-outline:focus-visible,
+.btn-danger-outline:focus-visible,
+.mobile-action-btn:focus-visible {
+  outline: 2px solid #0056b3;
+  outline-offset: 2px;
+}
+
+/* Sticky Action Column in Desktop Table */
+.actions-header-cell,
+.actions-table-cell {
+  position: sticky;
+  right: 0;
+  background-color: #ffffff;
+  box-shadow: -3px 0 6px rgba(0, 0, 0, 0.05);
+  z-index: 2;
+}
+
+.data-table thead .actions-header-cell {
+  background-color: #f8f9fa;
+  z-index: 3;
+}
+
+.data-table tbody tr.low-stock .actions-table-cell {
+  background-color: #fff8e1;
+}
+
+.data-table tbody tr:hover .actions-table-cell {
+  background-color: #f8f9fa;
+}
+
+.data-table tbody tr.low-stock:hover .actions-table-cell {
+  background-color: #fff3cd;
+}
+
+/* ================================================
+   MOBILE INVENTORY CARDS (<= 768px)
+   ================================================ */
+
+.inventory-cards-list {
+  display: none; /* Hidden on desktop & tablets > 768px */
+}
+
+@media (max-width: 768px) {
+  /* Hide the wide data table entirely on mobile */
+  .data-table-container {
+    display: none !important;
+  }
+
+  /* Show stacked cards container */
+  .inventory-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .inventory-mobile-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.95rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-left: 5px solid #28a745;
+  }
+
+  .inventory-mobile-card.card-status-low {
+    border-left-color: #ffc107;
+    background: #fffdf5;
+  }
+
+  .inventory-mobile-card.card-status-out {
+    border-left-color: #dc3545;
+    background: #fffafa;
+  }
+
+  .mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  .mobile-card-title-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-card-name {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+
+  .mobile-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.5rem;
+    background: #f8fafc;
+    border: 1px solid #edf2f7;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .mobile-metric-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .mobile-metric-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .mobile-metric-val {
+    font-size: 0.95rem;
+    color: #0f172a;
+  }
+
+  .mobile-metric-val strong {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .mobile-metric-val small {
+    font-size: 0.8rem;
+    color: #475569;
+  }
+
+  .mobile-card-actions-wrap {
+    width: 100%;
+    margin-top: 0.2rem;
+  }
+
+  .mobile-card-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .mobile-action-btn {
+    min-height: 42px;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+
+  .mobile-inline-form-box {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .mobile-form-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .mobile-inline-form-box .purchase-inline {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0;
+  }
+
+  .mobile-inline-form-box .purchase-inline input {
+    flex: 1;
+    min-width: 85px;
+    min-height: 40px;
+    font-size: 0.92rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .mobile-inline-form-box .purchase-inline button {
+    min-height: 40px;
+    min-width: 44px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .mobile-card-actions {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .mobile-action-btn {
+    min-height: 44px;
+    font-size: 0.85rem;
+  }
+}
