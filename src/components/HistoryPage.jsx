@@ -22,7 +22,7 @@ import {
   RotateCcw,
   Trash2
 } from 'lucide-react';
-import { getDigitalReceiptUrl, openWhatsAppReceipt } from '../utils/receiptHelper';
+import { getDigitalReceiptUrl, openWhatsAppReceipt, formatBillNumber } from '../utils/receiptHelper';
 import './HistoryPage.css';
 
 /**
@@ -501,8 +501,9 @@ const HistoryPage = () => {
               const hasBothSubtotals = dineInSub > 0 && parcelSub > 0;
 
               // Build normalized receipt object for digital receipt & WhatsApp actions
+              const cleanBillNo = formatBillNumber(entry.billNo || entry.id);
               const receiptData = {
-                billNo: entry.id || String(Math.floor(100000 + Math.random() * 900000)),
+                billNo: cleanBillNo,
                 tableId: entry.tableId,
                 orderType: entry.orderType || (isParcel ? 'takeaway' : 'dine-in'),
                 items,
@@ -580,7 +581,7 @@ const HistoryPage = () => {
                         ₹{Number(entry.total || 0).toFixed(2)}
                       </span>
                       <span className="history-card-ref">
-                        Ref: #{String(entry.id || '').slice(-6)}
+                        Ref: #{cleanBillNo}
                       </span>
                     </div>
                   </div>

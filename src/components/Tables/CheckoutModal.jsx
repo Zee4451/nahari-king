@@ -153,6 +153,7 @@ const CheckoutModal = () => {
                     : (hasBothSubtotals ? 'dine-in + parcel' : (parcelSubtotal > 0 ? 'takeaway' : 'dine-in'));
 
                 const historyEntry = {
+                    billNo: receiptData.billNo,
                     tableId: tgtTableId,
                     orderType: finalOrderType,
                     dineInSubtotal,
@@ -175,6 +176,7 @@ const CheckoutModal = () => {
 
                 const historyEntry = {
                     id: Date.now().toString(),
+                    billNo: receiptData.billNo,
                     tableId: targetId,
                     orderType: finalOrderType,
                     dineInSubtotal,

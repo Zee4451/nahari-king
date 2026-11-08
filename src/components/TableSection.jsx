@@ -1537,8 +1537,14 @@ const TableSection = () => {
                         </div>
                         {dineInItems.map((item) => (
                           <div key={item.key || item.id} className="bill-item-row">
-                            <div className="bill-item-info">
+                            <div className="bill-item-main-row">
                               <div className="bill-item-name" title={item.name}>{item.name}</div>
+                              <div className="bill-item-total">
+                                ₹{(item.price * item.quantity).toFixed(2)}
+                              </div>
+                            </div>
+
+                            <div className="bill-item-sub-row">
                               <div className="bill-item-subtext">
                                 <span className="bill-item-rate">₹{item.price} each</span>
                                 {!isParcelId(currentTable) && (
@@ -1553,40 +1559,38 @@ const TableSection = () => {
                                   </button>
                                 )}
                               </div>
-                            </div>
 
-                            <div className="bill-item-controls">
-                              <button
-                                type="button"
-                                className="bill-qty-btn minus"
-                                onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity - 1)}
-                                title="Decrease"
-                              >
-                                <Minus size={12} strokeWidth={2.5} />
-                              </button>
-                              <span className="bill-qty-display">{item.quantity}</span>
-                              <button
-                                type="button"
-                                className="bill-qty-btn plus"
-                                onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity + 1)}
-                                title="Increase"
-                              >
-                                <Plus size={12} strokeWidth={2.5} />
-                              </button>
-                            </div>
+                              <div className="bill-item-actions">
+                                <div className="bill-item-controls">
+                                  <button
+                                    type="button"
+                                    className="bill-qty-btn minus"
+                                    onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity - 1)}
+                                    title="Decrease"
+                                  >
+                                    <Minus size={12} strokeWidth={2.5} />
+                                  </button>
+                                  <span className="bill-qty-display">{item.quantity}</span>
+                                  <button
+                                    type="button"
+                                    className="bill-qty-btn plus"
+                                    onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity + 1)}
+                                    title="Increase"
+                                  >
+                                    <Plus size={12} strokeWidth={2.5} />
+                                  </button>
+                                </div>
 
-                            <div className="bill-item-total">
-                              ₹{(item.price * item.quantity).toFixed(2)}
+                                <button
+                                  type="button"
+                                  className="bill-remove-item-btn"
+                                  onClick={() => handleConsolidatedQuantityChange(item.id, 0)}
+                                  title="Remove"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </div>
-
-                            <button
-                              type="button"
-                              className="bill-remove-item-btn"
-                              onClick={() => handleConsolidatedQuantityChange(item.id, 0)}
-                              title="Remove"
-                            >
-                              <Trash2 size={13} />
-                            </button>
                           </div>
                         ))}
                       </div>
@@ -1604,8 +1608,14 @@ const TableSection = () => {
                         </div>
                         {parcelItems.map((item) => (
                           <div key={item.key || item.id} className="bill-item-row is-parcel-row">
-                            <div className="bill-item-info">
+                            <div className="bill-item-main-row">
                               <div className="bill-item-name" title={item.name}>{item.name}</div>
+                              <div className="bill-item-total">
+                                ₹{(item.price * item.quantity).toFixed(2)}
+                              </div>
+                            </div>
+
+                            <div className="bill-item-sub-row">
                               <div className="bill-item-subtext">
                                 <span className="bill-item-rate">₹{item.price} each</span>
                                 <span className="bill-parcel-badge">🛍️ PACK</span>
@@ -1621,40 +1631,38 @@ const TableSection = () => {
                                   </button>
                                 )}
                               </div>
-                            </div>
 
-                            <div className="bill-item-controls">
-                              <button
-                                type="button"
-                                className="bill-qty-btn minus"
-                                onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity - 1)}
-                                title="Decrease"
-                              >
-                                <Minus size={12} strokeWidth={2.5} />
-                              </button>
-                              <span className="bill-qty-display">{item.quantity}</span>
-                              <button
-                                type="button"
-                                className="bill-qty-btn plus"
-                                onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity + 1)}
-                                title="Increase"
-                              >
-                                <Plus size={12} strokeWidth={2.5} />
-                              </button>
-                            </div>
+                              <div className="bill-item-actions">
+                                <div className="bill-item-controls">
+                                  <button
+                                    type="button"
+                                    className="bill-qty-btn minus"
+                                    onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity - 1)}
+                                    title="Decrease"
+                                  >
+                                    <Minus size={12} strokeWidth={2.5} />
+                                  </button>
+                                  <span className="bill-qty-display">{item.quantity}</span>
+                                  <button
+                                    type="button"
+                                    className="bill-qty-btn plus"
+                                    onClick={() => handleConsolidatedQuantityChange(item.id, item.quantity + 1)}
+                                    title="Increase"
+                                  >
+                                    <Plus size={12} strokeWidth={2.5} />
+                                  </button>
+                                </div>
 
-                            <div className="bill-item-total">
-                              ₹{(item.price * item.quantity).toFixed(2)}
+                                <button
+                                  type="button"
+                                  className="bill-remove-item-btn"
+                                  onClick={() => handleConsolidatedQuantityChange(item.id, 0)}
+                                  title="Remove"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </div>
-
-                            <button
-                              type="button"
-                              className="bill-remove-item-btn"
-                              onClick={() => handleConsolidatedQuantityChange(item.id, 0)}
-                              title="Remove"
-                            >
-                              <Trash2 size={13} />
-                            </button>
                           </div>
                         ))}
                       </div>
@@ -1675,48 +1683,52 @@ const TableSection = () => {
                 effectiveActiveOrder && effectiveActiveOrder.items && effectiveActiveOrder.items.length > 0 ? (
                   effectiveActiveOrder.items.map((item) => (
                     <div key={item.id} className="bill-item-row">
-                      <div className="bill-item-info">
+                      <div className="bill-item-main-row">
                         <div className="bill-item-name" title={item.name}>{item.name}</div>
+                        <div className="bill-item-total">
+                          ₹{(item.price * item.quantity).toFixed(2)}
+                        </div>
+                      </div>
+
+                      <div className="bill-item-sub-row">
                         <div className="bill-item-subtext">
                           <span className="bill-item-rate">₹{item.price} each</span>
                           {(item.isParcel || isParcelId(currentTable)) && (
                             <span className="bill-parcel-badge">🛍️ PACK</span>
                           )}
                         </div>
-                      </div>
 
-                      <div className="bill-item-controls">
-                        <button
-                          type="button"
-                          className="bill-qty-btn minus"
-                          onClick={() => handleQuantityChange(effectiveActiveOrder.id, item.id, item.quantity - 1)}
-                          title="Decrease"
-                        >
-                          <Minus size={12} strokeWidth={2.5} />
-                        </button>
-                        <span className="bill-qty-display">{item.quantity}</span>
-                        <button
-                          type="button"
-                          className="bill-qty-btn plus"
-                          onClick={() => handleQuantityChange(effectiveActiveOrder.id, item.id, item.quantity + 1)}
-                          title="Increase"
-                        >
-                          <Plus size={12} strokeWidth={2.5} />
-                        </button>
-                      </div>
+                        <div className="bill-item-actions">
+                          <div className="bill-item-controls">
+                            <button
+                              type="button"
+                              className="bill-qty-btn minus"
+                              onClick={() => handleQuantityChange(effectiveActiveOrder.id, item.id, item.quantity - 1)}
+                              title="Decrease"
+                            >
+                              <Minus size={12} strokeWidth={2.5} />
+                            </button>
+                            <span className="bill-qty-display">{item.quantity}</span>
+                            <button
+                              type="button"
+                              className="bill-qty-btn plus"
+                              onClick={() => handleQuantityChange(effectiveActiveOrder.id, item.id, item.quantity + 1)}
+                              title="Increase"
+                            >
+                              <Plus size={12} strokeWidth={2.5} />
+                            </button>
+                          </div>
 
-                      <div className="bill-item-total">
-                        ₹{(item.price * item.quantity).toFixed(2)}
+                          <button
+                            type="button"
+                            className="bill-remove-item-btn"
+                            onClick={() => handleQuantityChange(effectiveActiveOrder.id, item.id, 0)}
+                            title="Remove from round"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
-
-                      <button
-                        type="button"
-                        className="bill-remove-item-btn"
-                        onClick={() => handleQuantityChange(effectiveActiveOrder.id, item.id, 0)}
-                        title="Remove from round"
-                      >
-                        <Trash2 size={13} />
-                      </button>
                     </div>
                   ))
                 ) : (

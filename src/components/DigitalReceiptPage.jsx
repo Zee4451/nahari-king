@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { decodeReceiptData, openWhatsAppReceipt } from '../utils/receiptHelper';
+import { decodeReceiptData, openWhatsAppReceipt, formatBillNumber } from '../utils/receiptHelper';
 import { Printer, Share2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import './DigitalReceiptPage.css';
 
@@ -241,8 +241,8 @@ const DigitalReceiptPage = () => {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <span style={{ color: '#64748b' }}>Bill Ref: </span>
-                        <span style={{ color: '#334155', fontFamily: 'monospace' }}>
-                            #{billNo || Math.floor(100000 + Math.random() * 900000)}
+                        <span style={{ color: '#334155', fontFamily: 'monospace', fontWeight: 700 }}>
+                            #{formatBillNumber(billNo)}
                         </span>
                     </div>
                 </div>

@@ -1,6 +1,16 @@
 import QRCode from 'qrcode';
 
 /**
+ * Formats a raw timestamp or Firestore document ID into a clean 6-digit Bill Reference
+ */
+export const formatBillNumber = (rawId) => {
+    if (!rawId) return String(Math.floor(100000 + Math.random() * 900000));
+    const str = String(rawId).replace(/[^a-zA-Z0-9]/g, '');
+    if (str.length <= 6) return str.toUpperCase();
+    return str.slice(-6).toUpperCase();
+};
+
+/**
  * Encodes order details into a URL-safe Base64 string
  */
 export const encodeReceiptData = (receipt) => {
@@ -112,7 +122,7 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl) => {
     lines.push(`🍽️ *NAHARI KING* 🍽️`);
     lines.push(`*Authentic Nalli Nihari & Mughlai*`);
     lines.push(`------------------------------------`);
-    if (billNo) lines.push(`🧾 *Bill No:* #${billNo}`);
+    if (billNo) lines.push(`🧾 *Bill Ref:* #${formatBillNumber(billNo)}`);
     lines.push(`📍 *Order:* ${locationName}`);
     lines.push(`📅 *Date:* ${timestamp || new Date().toLocaleString()}`);
     lines.push(`💳 *Payment:* Paid via ${paymentMethod}`);
