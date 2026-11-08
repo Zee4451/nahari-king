@@ -5190,13 +5190,15 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 5px;
+  padding: 2px 7px;
   border-radius: 4px;
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .bill-move-btn.to-parcel {
@@ -5222,6 +5224,9 @@ textarea {
 }
 
 .bill-parcel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   background: #ffedd5;
   color: #c2410c;
   border: 1px solid #fed7aa;
@@ -5230,13 +5235,15 @@ textarea {
   padding: 1px 5px;
   border-radius: 4px;
   letter-spacing: 0.4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .is-parcel-row {
   background: #fffdfa;
-  border-radius: 4px;
-  padding-left: 4px;
-  padding-right: 4px;
+  border-radius: 6px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .pos-table-parcel-pill {
@@ -5249,8 +5256,8 @@ textarea {
 .bill-item-row {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.6rem 0;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
   border-bottom: 1px dashed #e2e8f0;
 }
 
@@ -5263,6 +5270,7 @@ textarea {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
 .bill-item-name {
@@ -5272,23 +5280,35 @@ textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.bill-item-subtext {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  flex-wrap: wrap;
 }
 
 .bill-item-rate {
   font-size: 0.75rem;
   color: #64748b;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .bill-item-controls {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .bill-qty-btn {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: 5px;
   border: 1px solid #cbd5e1;
   background: #f8fafc;
   display: flex;
@@ -5297,6 +5317,8 @@ textarea {
   cursor: pointer;
   color: #334155;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  padding: 0;
 }
 
 .bill-qty-btn:hover {
@@ -5317,19 +5339,21 @@ textarea {
 }
 
 .bill-qty-display {
-  min-width: 20px;
+  min-width: 18px;
   text-align: center;
   font-weight: 700;
   font-size: 0.85rem;
   color: #0f172a;
+  flex-shrink: 0;
 }
 
 .bill-item-total {
-  min-width: 58px;
+  min-width: 56px;
   text-align: right;
   font-weight: 700;
   font-size: 0.88rem;
   color: #0f172a;
+  flex-shrink: 0;
 }
 
 .bill-remove-item-btn {
@@ -5343,6 +5367,7 @@ textarea {
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .bill-remove-item-btn:hover {

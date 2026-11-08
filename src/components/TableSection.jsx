@@ -1538,8 +1538,9 @@ const TableSection = () => {
                         {dineInItems.map((item) => (
                           <div key={item.key || item.id} className="bill-item-row">
                             <div className="bill-item-info">
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span className="bill-item-name">{item.name}</span>
+                              <div className="bill-item-name" title={item.name}>{item.name}</div>
+                              <div className="bill-item-subtext">
+                                <span className="bill-item-rate">₹{item.price} each</span>
                                 {!isParcelId(currentTable) && (
                                   <button
                                     type="button"
@@ -1552,7 +1553,6 @@ const TableSection = () => {
                                   </button>
                                 )}
                               </div>
-                              <span className="bill-item-rate">₹{item.price} each</span>
                             </div>
 
                             <div className="bill-item-controls">
@@ -1605,9 +1605,10 @@ const TableSection = () => {
                         {parcelItems.map((item) => (
                           <div key={item.key || item.id} className="bill-item-row is-parcel-row">
                             <div className="bill-item-info">
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span className="bill-item-name">{item.name}</span>
-                                <span className="bill-parcel-badge">PACK</span>
+                              <div className="bill-item-name" title={item.name}>{item.name}</div>
+                              <div className="bill-item-subtext">
+                                <span className="bill-item-rate">₹{item.price} each</span>
+                                <span className="bill-parcel-badge">🛍️ PACK</span>
                                 {!isParcelId(currentTable) && (
                                   <button
                                     type="button"
@@ -1620,7 +1621,6 @@ const TableSection = () => {
                                   </button>
                                 )}
                               </div>
-                              <span className="bill-item-rate">₹{item.price} each</span>
                             </div>
 
                             <div className="bill-item-controls">
@@ -1676,13 +1676,13 @@ const TableSection = () => {
                   effectiveActiveOrder.items.map((item) => (
                     <div key={item.id} className="bill-item-row">
                       <div className="bill-item-info">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="bill-item-name">{item.name}</span>
+                        <div className="bill-item-name" title={item.name}>{item.name}</div>
+                        <div className="bill-item-subtext">
+                          <span className="bill-item-rate">₹{item.price} each</span>
                           {(item.isParcel || isParcelId(currentTable)) && (
-                            <span className="bill-parcel-badge">PACK</span>
+                            <span className="bill-parcel-badge">🛍️ PACK</span>
                           )}
                         </div>
-                        <span className="bill-item-rate">₹{item.price} each</span>
                       </div>
 
                       <div className="bill-item-controls">
