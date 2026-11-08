@@ -16,6 +16,7 @@ import {
 } from '../services/firebaseService';
 import { useRenderPerformance, useFunctionPerformance, monitorFirebaseOperation } from '../utils/performanceMonitor';
 import MenuManagement from './Settings/MenuManagement';
+import TableManagement from './Settings/TableManagement';
 
 const SettingsPage = () => {
   // Define item types for drag and drop
@@ -25,10 +26,29 @@ const SettingsPage = () => {
   const [tables, setTables] = useState({});
 
   // Function to add a new table
-  const addNewTable = async () => {
-    // Get all existing table IDs and find the highest one
-    const existingTableIds = Object.keys(tables).map(Number);
-    const newTableId = existingTableIds.length > 0 ? Math.max(...existingTableIds) + 1 : 11; // Start from 11 if no tables exist
+  const addNewTable = async (customId) => {
+    const existingTableIds = Object.keys(tables).map(Number).filter(n => !isNaN(n));
+    let newTableId;
+    if (customId !== undefined && customId !== null && String(customId).trim() !== '') {
+      newTableId = Number(customId);
+    } else {
+      // Smart gap fill: find lowest missing positive integer starting from 1
+      const idSet = new Set(existingTableIds);
+      let candidate = 1;
+      while (idSet.has(candidate)) {
+        candidate++;
+      }
+      newTableId = candidate;
+    }
+
+    if (isNaN(newTableId) || newTableId <= 0) {
+      throw new Error('Please enter a valid table number');
+    }
+
+    if (tables[newTableId]) {
+      throw new Error('Table ' + newTableId + ' already exists');
+    }
+
     const newTable = {
       id: newTableId,
       orders: [],
@@ -36,13 +56,23 @@ const SettingsPage = () => {
     };
 
     await updateTable(newTableId, newTable);
+    return newTableId;
   };
 
-  // Function to delete a table
   const deleteTable = async (tableId) => {
     if (window.confirm(`Are you sure you want to delete Table ${tableId}? This will remove all orders from this table.`)) {
       await deleteTableFirebase(tableId);
     }
+  };
+
+  // Function to clear all orders from a table to make it available
+  const clearTable = async (tableId) => {
+    const cleared = {
+      id: tableId,
+      orders: [],
+      total: 0
+    };
+    await updateTable(tableId, cleared);
   };
 
   // State for managing menu items
@@ -53,26 +83,22 @@ const SettingsPage = () => {
 
   // Initialize the app with proper real-time subscriptions
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        // Load tables from Firebase
-        const unsubscribeTables = subscribeToTables((updatedTables) => {
-          setTables(updatedTables);
-        });
+    let unsubscribeTables = () => {};
+    try {
+      unsubscribeTables = subscribeToTables((updatedTables) => {
+        setTables(updatedTables);
+      });
+    } catch (error) {
+      console.error('Error subscribing to tables in SettingsPage:', error);
+    }
 
-        // Cleanup subscriptions on unmount
-        return () => {
-          unsubscribeTables();
-        };
-      } catch (error) {
-        console.error('Error initializing app:', error);
-      }
-    };
-
-    const cleanup = initializeApp();
     return () => {
-      if (cleanup && typeof cleanup === 'function') {
-        cleanup();
+      try {
+        if (typeof unsubscribeTables === 'function') {
+          unsubscribeTables();
+        }
+      } catch (e) {
+        console.warn('Error unsubscribing tables in SettingsPage:', e);
       }
     };
   }, []);
@@ -124,30 +150,12 @@ const SettingsPage = () => {
             {/* Table Management Tab */}
             {activeTab === 'tables' && (
               <div className={styles['settings-section'] || 'settings-section'}>
-                <h2>Table Management</h2>
-                <div className={styles['tables-management'] || 'tables-management'}>
-                  <div className={styles['table-actions'] || 'table-actions'}>
-                    <button className={styles['add-table-btn'] || 'add-table-btn'} onClick={addNewTable}>
-                      Add New Table
-                    </button>
-                  </div>
-
-                  <div className={styles['tables-grid'] || 'tables-grid'}>
-                    {Object.entries(tables).map(([tableId, tableData]) => (
-                      <div key={tableId} className={styles['table-card'] || 'table-card'}>
-                        <h3>Table {tableId}</h3>
-                        <p>Orders: {tableData.orders?.length || 0}</p>
-                        <p>Total: ₹{tableData.total || 0}</p>
-                        <button
-                          className={styles['delete-table-btn'] || 'delete-table-btn'}
-                          onClick={() => deleteTable(tableId)}
-                        >
-                          Delete Table
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <TableManagement
+                  tables={tables}
+                  addNewTable={addNewTable}
+                  deleteTable={deleteTable}
+                  clearTable={clearTable}
+                />
               </div>
             )}
 

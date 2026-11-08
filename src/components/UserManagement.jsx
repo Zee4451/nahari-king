@@ -8,9 +8,9 @@ import {
 } from '../services/authService';
 import Form from './Reusable/Form';
 import { ErrorBanner, SuccessBanner } from './Reusable/LoadingComponents';
+import styles from './UserManagement.module.css';
 
 const UserManagement = () => {
-  const [users, setUsers] = useState([]);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
   const [error, setError] = useState('');
@@ -60,10 +60,8 @@ const UserManagement = () => {
     }
   };
 
-  // Check if user is authenticated and admin
   useEffect(() => {
     if (!isAuthenticated() || !isAdmin()) {
-      // This should be handled by route protection, but extra safety
       return;
     }
   }, []);
@@ -75,7 +73,7 @@ const UserManagement = () => {
     
     try {
       await register(formData.email, formData.password, formData.role);
-      setSuccess('User registered successfully!');
+      setSuccess(`User "${formData.email}" registered successfully!`);
       setShowRegisterForm(false);
     } catch (err) {
       setError(err.message);
@@ -104,51 +102,116 @@ const UserManagement = () => {
 
   if (!isAuthenticated() || !isAdmin()) {
     return (
-      <div className="access-denied-section">
-        <h3>Access Denied</h3>
-        <p>You don't have permission to manage users.</p>
+      <div className={styles.umContainer}>
+        <div className={styles.profileCard}>
+          <h3 style={{ color: '#e53e3e', margin: 0 }}>Access Restricted</h3>
+          <p style={{ color: '#718096', margin: 0 }}>You must be logged in as an administrator to access user management settings.</p>
+        </div>
       </div>
     );
   }
 
+  const role = currentUser?.role || 'user';
+  const roleBadgeClass = role === 'admin' 
+    ? styles.badgeAdmin 
+    : role === 'manager' 
+      ? styles.badgeManager 
+      : styles.badgeUser;
+
+  const userInitial = (currentUser?.email?.[0] || 'U').toUpperCase();
+
   return (
-    <div className="user-management">
-      <h2>User Management</h2>
-      
-      {error && (
-        <ErrorBanner 
-          message={error} 
-          onClose={() => setError('')}
-        />
-      )}
-      
-      {success && (
-        <SuccessBanner 
-          message={success} 
-          onClose={() => setSuccess('')}
-          autoDismiss={3000}
-        />
-      )}
-      
-      <div className="user-actions">
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowRegisterForm(!showRegisterForm)}
-        >
-          {showRegisterForm ? 'Cancel Registration' : 'Register New User'}
-        </button>
-        
-        <button 
-          className="btn btn-secondary"
-          onClick={() => setShowChangePasswordForm(!showChangePasswordForm)}
-        >
-          {showChangePasswordForm ? 'Cancel Password Change' : 'Change My Password'}
-        </button>
+    <div className={styles.umContainer}>
+      {/* Header */}
+      <div className={styles.umHeader}>
+        <div>
+          <h2 className={styles.umTitle}>👥 User & Access Management</h2>
+          <p className={styles.umSubtitle}>Manage restaurant staff roles, credentials, and access privileges.</p>
+        </div>
       </div>
       
+      {/* Alerts */}
+      {error && <ErrorBanner message={error} onClose={() => setError('')} />}
+      {success && <SuccessBanner message={success} onClose={() => setSuccess('')} autoDismiss={3500} />}
+      
+      {/* Current User Profile Card */}
+      <div className={styles.profileCard}>
+        <div className={styles.cardHeader}>
+          <div className={styles.avatar}>{userInitial}</div>
+          <div className={styles.userInfo}>
+            <h3 className={styles.userEmail}>{currentUser?.email || 'Logged In Administrator'}</h3>
+            <span className={`${styles.roleBadge} ${roleBadgeClass}`}>
+              🛡️ {role.toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.cardBody}>
+          <div className={styles.detailRow}>
+            <span className={styles.label}>Permissions:</span>
+            <div className={styles.permissionChips}>
+              {(currentUser?.permissions && currentUser.permissions.length > 0) ? (
+                currentUser.permissions.map((perm, idx) => (
+                  <span key={idx} className={styles.chip}>✓ {perm}</span>
+                ))
+              ) : (
+                <span className={styles.chip}>Standard Permissions</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Cards Grid */}
+      <div className={styles.actionsGrid}>
+        {/* Register New User Action Card */}
+        <div className={styles.actionCard}>
+          <div className={styles.actionCardTop}>
+            <div className={styles.actionIcon}>➕</div>
+            <div className={styles.actionText}>
+              <h4>Register Staff Member</h4>
+              <p>Create a new account with customized role permissions.</p>
+            </div>
+          </div>
+          <button 
+            className={`${styles.btnPrimary} ${showRegisterForm ? styles.btnActive : ''}`}
+            onClick={() => {
+              setShowRegisterForm(!showRegisterForm);
+              if (!showRegisterForm) setShowChangePasswordForm(false);
+            }}
+          >
+            {showRegisterForm ? '✕ Close Form' : '+ New User'}
+          </button>
+        </div>
+
+        {/* Change Password Action Card */}
+        <div className={styles.actionCard}>
+          <div className={styles.actionCardTop}>
+            <div className={styles.actionIcon} style={{ backgroundColor: '#fefcbf', color: '#b7791f' }}>🔑</div>
+            <div className={styles.actionText}>
+              <h4>Change Account Password</h4>
+              <p>Update your current administrator password securely.</p>
+            </div>
+          </div>
+          <button 
+            className={`${styles.btnSecondary} ${showChangePasswordForm ? styles.btnActive : ''}`}
+            onClick={() => {
+              setShowChangePasswordForm(!showChangePasswordForm);
+              if (!showChangePasswordForm) setShowRegisterForm(false);
+            }}
+          >
+            {showChangePasswordForm ? '✕ Close Form' : 'Update Password'}
+          </button>
+        </div>
+      </div>
+      
+      {/* Register User Form Panel */}
       {showRegisterForm && (
-        <div className="form-section">
-          <h3>Register New User</h3>
+        <div className={styles.formPanel}>
+          <div className={styles.formPanelHeader}>
+            <h3>👤 Register New Staff / Manager</h3>
+            <button className={styles.closeBtn} onClick={() => setShowRegisterForm(false)} title="Close">✕</button>
+          </div>
           <Form
             initialValues={{
               email: '',
@@ -159,7 +222,7 @@ const UserManagement = () => {
             validationRules={registerValidationRules}
             onSubmit={handleRegisterSubmit}
             onCancel={() => setShowRegisterForm(false)}
-            submitText="Register User"
+            submitText="Create Account"
             cancelText="Cancel"
             loading={loading}
             fields={[
@@ -168,14 +231,14 @@ const UserManagement = () => {
                 label: 'Email Address',
                 type: 'email',
                 required: true,
-                placeholder: 'Enter email address'
+                placeholder: 'e.g. staff@nahariking.com'
               },
               {
                 name: 'password',
-                label: 'Password',
+                label: 'Account Password',
                 type: 'password',
                 required: true,
-                placeholder: 'Enter password',
+                placeholder: 'Minimum 8 characters',
                 inputProps: {
                   minLength: 8
                 }
@@ -185,18 +248,18 @@ const UserManagement = () => {
                 label: 'Confirm Password',
                 type: 'password',
                 required: true,
-                placeholder: 'Confirm password'
+                placeholder: 'Re-enter password'
               },
               {
                 name: 'role',
-                label: 'Role',
+                label: 'Access Role',
                 type: 'select',
                 inputProps: {
                   children: (
                     <>
-                      <option value="user">User</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
+                      <option value="user">Staff / Cashier (Order Entry)</option>
+                      <option value="manager">Manager (Inventory + Menu)</option>
+                      <option value="admin">Administrator (Full Access)</option>
                     </>
                   )
                 }
@@ -206,9 +269,13 @@ const UserManagement = () => {
         </div>
       )}
       
+      {/* Change Password Form Panel */}
       {showChangePasswordForm && (
-        <div className="form-section">
-          <h3>Change Password</h3>
+        <div className={styles.formPanel}>
+          <div className={styles.formPanelHeader}>
+            <h3>🔑 Change Administrator Password</h3>
+            <button className={styles.closeBtn} onClick={() => setShowChangePasswordForm(false)} title="Close">✕</button>
+          </div>
           <Form
             initialValues={{
               currentPassword: '',
@@ -218,7 +285,7 @@ const UserManagement = () => {
             validationRules={passwordValidationRules}
             onSubmit={handleChangePasswordSubmit}
             onCancel={() => setShowChangePasswordForm(false)}
-            submitText="Change Password"
+            submitText="Update Password"
             cancelText="Cancel"
             loading={loading}
             fields={[
@@ -234,7 +301,7 @@ const UserManagement = () => {
                 label: 'New Password',
                 type: 'password',
                 required: true,
-                placeholder: 'Enter new password',
+                placeholder: 'Enter new password (min 8 chars)',
                 inputProps: {
                   minLength: 8
                 }
@@ -250,13 +317,6 @@ const UserManagement = () => {
           />
         </div>
       )}
-      
-      <div className="current-user-info">
-        <h3>Current User</h3>
-        <p><strong>Email:</strong> {currentUser?.email}</p>
-        <p><strong>Role:</strong> {currentUser?.role || 'Unknown'}</p>
-        <p><strong>Permissions:</strong> {currentUser?.permissions?.join(', ') || 'None'}</p>
-      </div>
     </div>
   );
 };

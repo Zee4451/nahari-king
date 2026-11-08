@@ -78,23 +78,23 @@ export const useTables = () => {
             updatedItems = [...order.items];
             updatedItems[existingItemIndex] = {
                 ...updatedItems[existingItemIndex],
-                quantity: updatedItems[existingItemIndex].quantity + 1
+                quantity: (Number(updatedItems[existingItemIndex].quantity) || 0) + 1
             };
         } else {
-            updatedItems = [...order.items, { ...menuItem, quantity: 1 }];
+            updatedItems = [...order.items, { ...menuItem, quantity: 1, price: Number(menuItem.price) || 0 }];
         }
 
         const updatedOrders = [...table.orders];
         updatedOrders[orderIndex] = {
             ...order,
             items: updatedItems,
-            total: updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+            total: updatedItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
         };
 
         const updatedTable = {
             ...table,
             orders: updatedOrders,
-            total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+            total: updatedOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0)
         };
 
         // Optimistic UI Update
@@ -124,7 +124,7 @@ export const useTables = () => {
             updatedItems = [...order.items];
             updatedItems[itemIndex] = {
                 ...updatedItems[itemIndex],
-                quantity: newQuantity
+                quantity: Number(newQuantity) || 0
             };
         }
 
@@ -132,13 +132,13 @@ export const useTables = () => {
         updatedOrders[orderIndex] = {
             ...order,
             items: updatedItems,
-            total: updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+            total: updatedItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
         };
 
         const updatedTable = {
             ...table,
             orders: updatedOrders,
-            total: updatedOrders.reduce((sum, order) => sum + order.total, 0)
+            total: updatedOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0)
         };
 
         // Optimistic UI Update
@@ -194,6 +194,15 @@ export const useTables = () => {
     }, []);
 
     const clearTable = useCallback(async (tableId) => {
+        const isParcel = String(tableId).startsWith('P-');
+        if (isParcel) {
+            // Once paid/settled, delete the completed parcel order from active tables
+            delete tablesRef.current[tableId];
+            setTables({ ...tablesRef.current });
+            await deleteTableFirebase(tableId);
+            return;
+        }
+
         const table = tablesRef.current[tableId];
         if (!table) return;
 
@@ -211,9 +220,72 @@ export const useTables = () => {
         await updateTable(tableId, updatedTable);
     }, []);
 
-    const addNewTable = useCallback(async () => {
-        const existingTableIds = Object.keys(tablesRef.current).map(Number);
-        const newTableId = existingTableIds.length > 0 ? Math.max(...existingTableIds) + 1 : 11;
+    const addNewParcelOrder = useCallback(async () => {
+        const existingParcelIds = Object.keys(tablesRef.current)
+            .filter(id => String(id).startsWith('P-'))
+            .map(id => Number(id.replace('P-', '')))
+            .filter(n => !isNaN(n));
+
+        const idSet = new Set(existingParcelIds);
+        let candidate = 1;
+        while (idSet.has(candidate)) {
+            candidate++;
+        }
+        const newParcelId = `P-${candidate}`;
+        const newParcel = {
+            id: newParcelId,
+            type: 'takeaway',
+            orders: [{ id: `order-${Date.now()}-1`, items: [], total: 0 }],
+            total: 0
+        };
+        const newlyUpdatedTables = { ...tablesRef.current, [newParcelId]: newParcel };
+        tablesRef.current = newlyUpdatedTables;
+        setTables(newlyUpdatedTables);
+        await updateTable(newParcelId, newParcel);
+        return newParcelId;
+    }, []);
+
+    const toggleItemParcel = useCallback(async (tableId, orderId, itemId) => {
+        const table = tablesRef.current[tableId];
+        if (!table || !table.orders) return;
+
+        const updatedOrders = table.orders.map(order => {
+            if (order.id !== orderId) return order;
+            return {
+                ...order,
+                items: (order.items || []).map(it => {
+                    if (it.id !== itemId) return it;
+                    return { ...it, isParcel: !it.isParcel };
+                })
+            };
+        });
+
+        const updatedTable = { ...table, orders: updatedOrders };
+        const newlyUpdatedTables = { ...tablesRef.current, [tableId]: updatedTable };
+        tablesRef.current = newlyUpdatedTables;
+        setTables(newlyUpdatedTables);
+        await updateTable(tableId, updatedTable);
+    }, []);
+
+    const addNewTable = useCallback(async (customId) => {
+        const existingTableIds = Object.keys(tablesRef.current).map(Number).filter(n => !isNaN(n));
+        let newTableId;
+        if (customId !== undefined && customId !== null && String(customId).trim() !== '') {
+            newTableId = Number(customId);
+        } else {
+            // Smart gap fill: find lowest missing positive integer starting from 1
+            const idSet = new Set(existingTableIds);
+            let candidate = 1;
+            while (idSet.has(candidate)) {
+                candidate++;
+            }
+            newTableId = candidate;
+        }
+
+        if (isNaN(newTableId) || newTableId <= 0) {
+            throw new Error('Please enter a valid table number');
+        }
+
         const newTable = {
             id: newTableId,
             orders: [],
@@ -253,6 +325,8 @@ export const useTables = () => {
         clearTable,
         addNewTable,
         deleteTable,
+        addNewParcelOrder,
+        toggleItemParcel,
         tablesRef
     };
 };

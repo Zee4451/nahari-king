@@ -8,7 +8,7 @@ class ErrorBoundary extends React.Component {
 
   static getDerivedStateFromError(error) {
     // Update state so the next render will show the fallback UI.
-    return { hasError: true };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -24,8 +24,26 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       // You can render any custom fallback UI
       return (
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <div style={{ padding: '2rem', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
           <h2>Something went wrong.</h2>
+          <div style={{ 
+            textAlign: 'left', 
+            background: '#ffebee', 
+            color: '#c62828', 
+            padding: '1rem', 
+            borderRadius: '8px', 
+            marginTop: '1rem',
+            marginBottom: '1rem',
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all'
+          }}>
+            <strong>Error:</strong> {this.state.error?.toString()}
+            <br /><br />
+            <strong>Stack:</strong>
+            <br />
+            {this.state.error?.stack}
+          </div>
           <button 
             onClick={() => window.location.reload()}
             style={{

@@ -178,16 +178,22 @@ export const monitorFirebaseOperation = async (operationName, operation) => {
 export const monitorFirestoreListener = (listenerName, unsubscribeFn) => {
   const startTime = Date.now();
   
-  // Wrap the unsubscribe function to track listener duration
+  // Wrap the unsubscribe function to track listener duration safely
   const wrappedUnsubscribe = () => {
-    const duration = Date.now() - startTime;
-    
-    // Check for long-running listeners that might cause performance issues
-    if (duration > 300000) { // 5 minutes
-      console.warn(`Long-running Firestore listener detected: ${listenerName}`);
+    try {
+      const duration = Date.now() - startTime;
+      
+      // Check for long-running listeners that might cause performance issues
+      if (duration > 300000) { // 5 minutes
+        console.warn(`Long-running Firestore listener detected: ${listenerName}`);
+      }
+      
+      if (typeof unsubscribeFn === 'function') {
+        unsubscribeFn();
+      }
+    } catch (err) {
+      console.warn(`Safely caught unsubscribe error in ${listenerName}:`, err);
     }
-    
-    unsubscribeFn();
   };
   
   return wrappedUnsubscribe;

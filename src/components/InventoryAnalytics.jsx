@@ -59,7 +59,7 @@ const InventoryAnalytics = () => {
                 start.setDate(start.getDate() - 7);
                 start.setHours(0, 0, 0, 0);
             } else if (datePreset === 'thisMonth') {
-                start = new Date(start.getFullYear(), start.getMonth(), 1);
+                start = new Date(start.getFullYear(), start.getMonth(), 1, 0, 0, 0, 0);
             } else if (datePreset === 'custom') {
                 if (!customStartDate || !customEndDate) {
                     setMetricsLoading(false);
@@ -73,13 +73,13 @@ const InventoryAnalytics = () => {
 
             try {
                 const data = await getAnalyticsData(start, end);
-                setPurchases(data.purchases);
-                setUsages(data.usages);
-                setWastes(data.waste);
-                setDailyMetrics(data.metricsDocs || []);
+                setPurchases(data.purchases || []);
+                setUsages(data.usages || []);
+                setWastes(data.waste || []);
                 setDailyMetrics(data.metricsDocs || []);
             } catch (err) {
-                setError(err.message);
+                console.error("Error fetching metrics:", err);
+                setError(err.message || 'Failed to load analytics data.');
             } finally {
                 setMetricsLoading(false);
             }
@@ -243,6 +243,15 @@ const InventoryAnalytics = () => {
             const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
             const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
             const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+            if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
+                setReportMessage({ 
+                    text: 'Email service is not configured. Please add VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_TEMPLATE_ID, and VITE_EMAILJS_PUBLIC_KEY in your .env file.', 
+                    type: 'error' 
+                });
+                setIsSendingReport(false);
+                return;
+            }
 
             await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
             setReportMessage({ text: `Report sent for ${dateStr} successfully!`, type: 'success' });

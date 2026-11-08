@@ -47,23 +47,32 @@ const wasteEntriesCollection = collection(db, 'waste_entries');
  * @returns {Function} Unsubscribe function
  */
 export function subscribeToInventory(callback) {
-    const q = query(inventoryCollection, orderBy('name'));
-    return onSnapshot(q, (snapshot) => {
-        const items = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })).sort((a, b) => {
-            // Sort by category first, then by name if categories are the same
-            const categoryComparison = (a.category || '').localeCompare(b.category || '');
-            if (categoryComparison !== 0) {
-                return categoryComparison;
+    if (typeof callback !== 'function') return () => {};
+    try {
+        const q = query(inventoryCollection, orderBy('name'));
+        return onSnapshot(q, (snapshot) => {
+            try {
+                const items = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })).sort((a, b) => {
+                    const categoryComparison = (a.category || '').localeCompare(b.category || '');
+                    if (categoryComparison !== 0) {
+                        return categoryComparison;
+                    }
+                    return (a.name || '').localeCompare(b.name || '');
+                });
+                callback(items);
+            } catch (err) {
+                console.error('Error processing inventory snapshot:', err);
             }
-            return (a.name || '').localeCompare(b.name || '');
+        }, (error) => {
+            console.error('Error subscribing to inventory:', error);
         });
-        callback(items);
-    }, (error) => {
-        console.error('Error subscribing to inventory:', error);
-    });
+    } catch (err) {
+        console.error('Caught error in subscribeToInventory:', err);
+        return () => {};
+    }
 }
 
 /**
@@ -117,27 +126,25 @@ export async function deleteInventoryItem(id) {
  */
 export async function addPurchaseRecord(data) {
     const batch = writeBatch(db);
+    const purchaseQty = Number(data.quantity) || 0;
+    const unitCost = Number(data.unitCost) || 0;
 
     // 1. Create purchase record
     const purchaseRef = doc(purchaseRecordsCollection);
     batch.set(purchaseRef, {
         inventoryItemId: data.inventoryItemId,
         itemName: data.itemName,
-        quantity: Number(data.quantity),
-        unitCost: Number(data.unitCost),
-        totalCost: Number(data.quantity) * Number(data.unitCost),
+        quantity: purchaseQty,
+        unitCost: unitCost,
+        totalCost: purchaseQty * unitCost,
         purchaseDate: serverTimestamp()
     });
 
-    // 2. Increment stock on the inventory item
+    // 2. Atomically increment stock on the inventory item (prevents race condition)
     const itemRef = doc(db, 'inventory_items', data.inventoryItemId);
-    const itemSnap = await getDoc(itemRef);
-    if (!itemSnap.exists()) throw new Error('Inventory item not found');
-
-    const currentStock = itemSnap.data().currentStock || 0;
     batch.update(itemRef, {
-        currentStock: currentStock + Number(data.quantity),
-        costPerUnit: Number(data.unitCost), // Update latest cost
+        currentStock: increment(purchaseQty),
+        costPerUnit: unitCost, // Update latest cost
         lastUpdated: serverTimestamp()
     });
 
@@ -163,6 +170,8 @@ export function subscribeToPurchaseRecords(inventoryItemId, callback) {
             ...doc.data()
         }));
         callback(records);
+    }, (error) => {
+        console.error('Error subscribing to purchase records:', error);
     });
 }
 
@@ -177,35 +186,31 @@ export function subscribeToPurchaseRecords(inventoryItemId, callback) {
  */
 export async function addWasteEntry(data) {
     const batch = writeBatch(db);
+    const wasteQty = Number(data.quantity) || 0;
+    const unitCost = Number(data.unitCost) || 0;
+    const totalWastageCost = wasteQty * unitCost;
 
     // 1. Create waste record
     const wasteRef = doc(wasteEntriesCollection);
     batch.set(wasteRef, {
         inventoryItemId: data.inventoryItemId,
         itemName: data.itemName,
-        quantity: Number(data.quantity),
+        quantity: wasteQty,
         reason: data.reason || 'Not specified',
-        unitCost: Number(data.unitCost),
-        totalCost: Number(data.quantity) * Number(data.unitCost),
+        unitCost: unitCost,
+        totalCost: totalWastageCost,
         wasteDate: serverTimestamp()
     });
 
-    // 2. Decrement stock on the inventory item
+    // 2. Atomically decrement stock on the inventory item (prevents race condition)
     const itemRef = doc(db, 'inventory_items', data.inventoryItemId);
-    const itemSnap = await getDoc(itemRef);
-    if (!itemSnap.exists()) throw new Error('Inventory item not found');
-
-    const currentStock = itemSnap.data().currentStock || 0;
-    const newStock = Math.max(0, currentStock - Number(data.quantity));
-
     batch.update(itemRef, {
-        currentStock: newStock,
+        currentStock: increment(-wasteQty),
         lastUpdated: serverTimestamp()
     });
 
     // 3. Update daily_metrics for Wastage Loss (MVP Spark Client-Side)
     const dateStr = getLocalDateString();
-    const totalWastageCost = Number(data.quantity) * Number(data.unitCost);
     batch.set(doc(db, 'daily_metrics', dateStr), {
         date: dateStr,
         totalWastageLoss: increment(totalWastageCost),
@@ -428,61 +433,87 @@ export async function executeProduction(recipe, targetQuantity, inventoryItems) 
  * @returns {Object} Object containing arrays of purchases, usage logs, and waste entries
  */
 export async function getAnalyticsData(startDate, endDate) {
-    // Convert JS Dates to Firebase Timestamps
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Ensure boundary timestamps
+    const startTimestamp = Timestamp.fromDate(start);
+    const endTimestamp = Timestamp.fromDate(end);
+
+    // Helper to run range query with automatic fallback to client-side sort if Firestore index is missing
+    const safeQuery = async (colRef, dateField) => {
+        try {
+            // First try optimized range query with orderBy
+            const q = query(
+                colRef,
+                where(dateField, '>=', startTimestamp),
+                where(dateField, '<=', endTimestamp),
+                orderBy(dateField, 'desc')
+            );
+            const snap = await getDocs(q);
+            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+            console.warn(`Query with orderBy failed on ${dateField} (likely missing index). Falling back:`, err.message);
+            try {
+                // Fallback: range query without orderBy, sort in-memory
+                const fallbackQ = query(
+                    colRef,
+                    where(dateField, '>=', startTimestamp),
+                    where(dateField, '<=', endTimestamp)
+                );
+                const snap = await getDocs(fallbackQ);
+                const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                return docs.sort((a, b) => {
+                    const dateA = a[dateField]?.toDate ? a[dateField].toDate().getTime() : 0;
+                    const dateB = b[dateField]?.toDate ? b[dateField].toDate().getTime() : 0;
+                    return dateB - dateA;
+                });
+            } catch (fallbackErr) {
+                console.error(`Fallback failed for ${dateField}:`, fallbackErr);
+                return [];
+            }
+        }
+    };
+
+    // Daily metrics query with safety fallback
+    const safeMetricsQuery = async () => {
+        try {
+            const startStr = getLocalDateString(start);
+            const endStr = getLocalDateString(end);
+            const metricsQuery = query(
+                collection(db, 'daily_metrics'),
+                where('date', '>=', startStr),
+                where('date', '<=', endStr)
+            );
+            const metricsSnapshot = await getDocs(metricsQuery);
+            return metricsSnapshot.docs.map(doc => doc.data());
+        } catch (err) {
+            console.warn("Error fetching daily_metrics, falling back to empty:", err);
+            return [];
+        }
+    };
 
     try {
-        // 1. Fetch Purchase Records (Inflow)
-        const purchasesQuery = query(
-            purchaseRecordsCollection,
-            where('purchaseDate', '>=', startTimestamp),
-            where('purchaseDate', '<=', endTimestamp),
-            orderBy('purchaseDate', 'desc')
-        );
-        const purchaseSnapshot = await getDocs(purchasesQuery);
-        const purchases = purchaseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        // 2. Fetch Usage Logs (Utilization)
-        const usageQuery = query(
-            collection(db, 'usage_logs'),
-            where('timestamp', '>=', startTimestamp),
-            where('timestamp', '<=', endTimestamp),
-            orderBy('timestamp', 'desc')
-        );
-        const usageSnapshot = await getDocs(usageQuery);
-        const usages = usageSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        // 3. Fetch Waste Entries (Loss)
-        const wasteQuery = query(
-            wasteEntriesCollection,
-            where('wasteDate', '>=', startTimestamp),
-            where('wasteDate', '<=', endTimestamp),
-            orderBy('wasteDate', 'desc')
-        );
-        const wasteSnapshot = await getDocs(wasteQuery);
-        const waste = wasteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        // 4. Fetch Daily Metrics (for Item Sales Aggregation)
-        const startStr = getLocalDateString(startDate);
-        const endStr = getLocalDateString(endDate);
-        const metricsQuery = query(
-            collection(db, 'daily_metrics'),
-            where('date', '>=', startStr),
-            where('date', '<=', endStr)
-        );
-        const metricsSnapshot = await getDocs(metricsQuery);
-        const metricsDocs = metricsSnapshot.docs.map(doc => doc.data());
+        const [purchasesRes, usagesRes, wasteRes, metricsRes] = await Promise.allSettled([
+            safeQuery(purchaseRecordsCollection, 'purchaseDate'),
+            safeQuery(collection(db, 'usage_logs'), 'timestamp'),
+            safeQuery(wasteEntriesCollection, 'wasteDate'),
+            safeMetricsQuery()
+        ]);
 
         return {
-            purchases,
-            usages,
-            waste,
-            metricsDocs
-
+            purchases: purchasesRes.status === 'fulfilled' ? purchasesRes.value : [],
+            usages: usagesRes.status === 'fulfilled' ? usagesRes.value : [],
+            waste: wasteRes.status === 'fulfilled' ? wasteRes.value : [],
+            metricsDocs: metricsRes.status === 'fulfilled' ? metricsRes.value : []
         };
     } catch (error) {
         console.error("Error fetching analytics data:", error);
-        throw error;
+        return {
+            purchases: [],
+            usages: [],
+            waste: [],
+            metricsDocs: []
+        };
     }
 }

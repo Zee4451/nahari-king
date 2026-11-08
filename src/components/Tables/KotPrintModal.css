@@ -1,0 +1,322 @@
+/* ========================================================
+   KITCHEN ORDER TICKET (KOT) MODAL & THERMAL PRINT STYLES
+   ======================================================== */
+
+.kot-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+}
+
+.kot-modal-card {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.kot-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.kot-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.kot-icon {
+  color: #2563eb;
+}
+
+.kot-modal-title h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.kot-modal-title p {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.kot-close-btn {
+  background: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kot-close-btn:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.kot-preview-scroll {
+  padding: 1.25rem;
+  background: #f1f5f9;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+}
+
+/* Thermal Paper Slip */
+.kot-thermal-ticket {
+  width: 100%;
+  max-width: 320px;
+  background: #ffffff;
+  padding: 1.25rem 1.15rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  font-family: 'Courier New', Courier, monospace, system-ui;
+  color: #000000;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  border-radius: 4px;
+}
+
+.kot-ticket-header {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.kot-brand {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.kot-ticket-type {
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.kot-divider-double {
+  border-top: 3px double #000000;
+  margin: 0.5rem 0;
+}
+
+.kot-divider-solid {
+  border-top: 1px solid #000000;
+  margin: 0.4rem 0;
+}
+
+.kot-divider-dashed {
+  border-top: 1px dashed #000000;
+  margin: 0.45rem 0;
+}
+
+.kot-meta-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.82rem;
+}
+
+.kot-meta-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.kot-label {
+  font-weight: bold;
+}
+
+.kot-val {
+  font-weight: 600;
+}
+
+.kot-table-val {
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.kot-items-table-header {
+  display: flex;
+  font-weight: bold;
+  font-size: 0.82rem;
+}
+
+.kot-col-qty {
+  width: 45px;
+  font-weight: 900;
+}
+
+.kot-col-item {
+  flex: 1;
+  font-weight: 700;
+}
+
+.kot-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0.25rem 0;
+}
+
+.kot-item-row {
+  display: flex;
+  align-items: flex-start;
+  font-size: 0.9rem;
+}
+
+.kot-item-row .kot-col-qty {
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.kot-item-row .kot-col-item {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.kot-no-items {
+  text-align: center;
+  padding: 1rem 0;
+  color: #64748b;
+}
+
+.kot-footer-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-weight: bold;
+}
+
+.kot-total-items-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.kot-bottom-instructions {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Modal Footer */
+.kot-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.kot-btn-secondary {
+  padding: 0.55rem 1rem;
+  background: #e2e8f0;
+  color: #475569;
+  border: none;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kot-btn-secondary:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.kot-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.55rem 1.25rem;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  transition: all 0.15s ease;
+}
+
+.kot-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.kot-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========================================================
+   DIRECT THERMAL PRINT STYLES (@media print)
+   ======================================================== */
+@media print {
+  /* Hide everything on page */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the KOT thermal ticket */
+  #printable-kot-ticket,
+  #printable-kot-ticket * {
+    visibility: visible;
+  }
+
+  #printable-kot-ticket {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 2mm 3mm;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+    color: #000000;
+    font-size: 11pt;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+}

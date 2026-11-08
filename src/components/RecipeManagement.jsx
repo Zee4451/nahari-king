@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import NavigationBar from './NavigationBar';
 import { ErrorBanner, SuccessBanner } from './Reusable/LoadingComponents';
 import {
@@ -64,15 +64,15 @@ const RecipeManagement = () => {
         };
     }, []);
 
-    // Auto-recalculate BOM when inventory changes
+    // Auto-recalculate BOM when inventory, targetQuantity, or selected recipe updates
     useEffect(() => {
-        if (bomResult && selectedRecipeId && targetQuantity) {
+        if (selectedRecipeId && Number(targetQuantity) > 0 && inventory.length > 0) {
             const recipe = recipes.find(r => r.id === selectedRecipeId);
             if (recipe) {
                 setBomResult(calculateBOM(recipe, Number(targetQuantity), inventory));
             }
         }
-    }, [inventory]);
+    }, [inventory, selectedRecipeId, targetQuantity, recipes]);
 
     // Recipe form handlers
     const openAddModal = () => {
@@ -146,10 +146,10 @@ const RecipeManagement = () => {
             return;
         }
         const validIngredients = formData.ingredients.filter(
-            ing => ing.inventoryItemId && Number(ing.quantity) > 0
+            ing => ing.inventoryItemId && !isNaN(Number(ing.quantity)) && Number(ing.quantity) > 0
         );
         if (validIngredients.length === 0) {
-            setError('Add at least one ingredient with a valid quantity');
+            setError('Add at least one ingredient with a valid positive quantity');
             return;
         }
 
@@ -159,8 +159,11 @@ const RecipeManagement = () => {
                 name: formData.name.trim(),
                 outputQuantity: Number(formData.outputQuantity),
                 outputUnit: formData.outputUnit,
-                ingredients: validIngredients,
-                linkedMenuItemId: formData.linkedMenuItemId
+                ingredients: validIngredients.map(ing => ({
+                    ...ing,
+                    quantity: Number(ing.quantity)
+                })),
+                linkedMenuItemId: formData.linkedMenuItemId || null
             };
 
             if (editingRecipe) {
@@ -238,9 +241,16 @@ const RecipeManagement = () => {
 
     // Quick-calculate from recipe card
     const quickCalculate = (recipe) => {
+        if (!recipe?.id) return;
+        const outQty = Number(recipe.outputQuantity);
+        if (isNaN(outQty) || outQty <= 0) {
+            setError(`Invalid output quantity for "${recipe.name}"`);
+            return;
+        }
+
         setSelectedRecipeId(recipe.id);
-        setTargetQuantity(recipe.outputQuantity);
-        const result = calculateBOM(recipe, recipe.outputQuantity, inventory);
+        setTargetQuantity(outQty);
+        const result = calculateBOM(recipe, outQty, inventory);
         setBomResult(result);
         // Scroll to calculator
         document.querySelector('.bom-calculator')?.scrollIntoView({ behavior: 'smooth' });

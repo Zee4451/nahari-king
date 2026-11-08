@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import styles from '../InventoryBOM.module.css';
 
 const ChronologicalLedger = ({ ledger }) => {
@@ -8,7 +8,7 @@ const ChronologicalLedger = ({ ledger }) => {
     const totalPages = Math.max(1, Math.ceil(ledger.length / ITEMS_PER_PAGE));
 
     // Automatically reset page to 1 if the underlying ledger changes entirely
-    useMemo(() => {
+    useEffect(() => {
         setLedgerPage(1);
     }, [ledger]);
 

@@ -29,7 +29,15 @@ export const useMenu = () => {
             }
         });
 
-        return () => unsubscribe();
+        return () => {
+            try {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            } catch (e) {
+                console.warn('Error unsubscribing useMenu:', e);
+            }
+        };
     }, []);
 
     const addMenuItem = useCallback(async (formData) => {
@@ -112,10 +120,31 @@ export const useMenu = () => {
         }
     }, [menuItems]);
 
+    const saveMenuOrder = useCallback(async (newOrderedItems) => {
+        try {
+            const updatedItems = newOrderedItems.map((item, index) => ({
+                ...item,
+                sequence: index + 1
+            }));
+
+            // Optimistically update UI
+            setMenuItems(updatedItems);
+
+            await retryWithBackoff(() => firebaseBulkUpdateMenuItems(updatedItems));
+            setError('');
+            return true;
+        } catch (err) {
+            console.error('Error updating menu item positions:', err);
+            setError('Failed to save new custom order');
+            throw err;
+        }
+    }, []);
+
     const clearError = useCallback(() => setError(''), []);
 
     return {
         menuItems,
+        setMenuItems,
         loading,
         error,
         addMenuItem,
@@ -123,6 +152,7 @@ export const useMenu = () => {
         deleteMenuItem,
         toggleAvailability,
         reorderMenuItems,
+        saveMenuOrder,
         clearError
     };
 };

@@ -32,23 +32,6 @@ export const useForm = (initialValues, validationRules = {}) => {
   }, [errors]);
 
   // Handle field blur (for validation)
-  const handleBlur = useCallback((e) => {
-    const { name } = e.target;
-    setTouched(prev => ({
-      ...prev,
-      [name]: true
-    }));
-    
-    // Validate the field
-    if (validationRules[name]) {
-      const error = validateField(name, values[name], validationRules[name]);
-      setErrors(prev => ({
-        ...prev,
-        [name]: error
-      }));
-    }
-  }, [values, validationRules]);
-
   // Validate a single field
   const validateField = (name, value, rules) => {
     if (!rules) return '';
@@ -81,6 +64,23 @@ export const useForm = (initialValues, validationRules = {}) => {
 
     return '';
   };
+
+  const handleBlur = useCallback((e) => {
+    const { name } = e.target;
+    setTouched(prev => ({
+      ...prev,
+      [name]: true
+    }));
+    
+    // Validate the field
+    if (validationRules[name]) {
+      const error = validateField(name, values[name], validationRules[name]);
+      setErrors(prev => ({
+        ...prev,
+        [name]: error
+      }));
+    }
+  }, [values, validationRules]);
 
   // Validate entire form
   const validateForm = useCallback(() => {

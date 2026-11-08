@@ -54,6 +54,7 @@ import { getCurrentShift } from './shiftService';
 const tablesCollection = collection(db, 'tables');
 const historyCollection = collection(db, 'history');
 const menuItemsCollection = collection(db, 'menuItems');
+const categoriesCollection = collection(db, 'menuCategories');
 
 
 
@@ -258,16 +259,40 @@ export const getAllTables = async () => {
 
 // Subscribe to real-time tables updates
 export const subscribeToTables = (callback) => {
-  const unsubscribe = onSnapshot(tablesCollection, (snapshot) => {
-    const tables = {};
-    snapshot.forEach((doc) => {
-      tables[doc.id] = doc.data();
-    });
-    callback(tables);
-  });
+  if (typeof callback !== 'function') {
+    return () => {};
+  }
 
-  // Return wrapped unsubscribe for performance monitoring
-  return monitorFirestoreListener('tables_subscription', unsubscribe);
+  try {
+    const unsubscribe = onSnapshot(
+      tablesCollection,
+      (snapshot) => {
+        try {
+          const tables = {};
+          snapshot.forEach((doc) => {
+            tables[doc.id] = doc.data();
+          });
+          callback(tables);
+        } catch (procErr) {
+          console.error('Error processing tables snapshot:', procErr);
+        }
+      },
+      (error) => {
+        console.warn('Error subscribing to tables, falling back to getTables:', error);
+        getTables().then(tables => {
+          if (tables) callback(tables);
+        }).catch(e => console.error('Fallback getTables failed:', e));
+      }
+    );
+
+    return monitorFirestoreListener('tables_subscription', unsubscribe);
+  } catch (err) {
+    console.warn('Caught synchronous error in subscribeToTables, falling back to getTables:', err);
+    getTables().then(tables => {
+      if (tables) callback(tables);
+    }).catch(e => console.error('Fallback getTables failed:', e));
+    return () => {};
+  }
 };
 
 // Get specific table data with performance monitoring
@@ -414,19 +439,36 @@ export const subscribeToHistory = (callback) => {
     return () => { };
   }
 
-  const unsubscribe = onSnapshot(
-    query(historyCollection, orderBy('timestamp', 'desc')),
-    (snapshot) => {
-      const history = [];
-      snapshot.forEach((doc) => {
-        history.push({ id: doc.id, ...doc.data() });
-      });
-      callback(history);
-    }
-  );
+  try {
+    const unsubscribe = onSnapshot(
+      query(historyCollection, orderBy('timestamp', 'desc')),
+      (snapshot) => {
+        try {
+          const history = [];
+          snapshot.forEach((doc) => {
+            history.push({ id: doc.id, ...doc.data() });
+          });
+          callback(history);
+        } catch (procErr) {
+          console.error('Error processing history snapshot:', procErr);
+        }
+      },
+      (error) => {
+        console.warn('Error subscribing to history, falling back to getAllHistory:', error);
+        getAllHistory().then(history => {
+          if (history) callback(history);
+        }).catch(e => console.error('Fallback getAllHistory failed:', e));
+      }
+    );
 
-  // Return wrapped unsubscribe for performance monitoring
-  return monitorFirestoreListener('history_subscription', unsubscribe);
+    return monitorFirestoreListener('history_subscription', unsubscribe);
+  } catch (err) {
+    console.warn('Caught synchronous error in subscribeToHistory, falling back to getAllHistory:', err);
+    getAllHistory().then(history => {
+      if (history) callback(history);
+    }).catch(e => console.error('Fallback getAllHistory failed:', e));
+    return () => {};
+  }
 };
 
 // Add a history entry with performance monitoring
@@ -847,22 +889,36 @@ export const subscribeToMenuItems = (callback) => {
     return () => { };
   }
 
-  const unsubscribe = onSnapshot(
-    query(menuItemsCollection, orderBy('sequence', 'asc')),
-    (snapshot) => {
-      const menuItems = [];
-      snapshot.forEach((doc) => {
-        menuItems.push({ id: doc.id, ...doc.data() });
-      });
-      callback(menuItems);
-    },
-    (error) => {
-      console.error('Error subscribing to menu items:', error);
-    }
-  );
+  try {
+    const unsubscribe = onSnapshot(
+      query(menuItemsCollection, orderBy('sequence', 'asc')),
+      (snapshot) => {
+        try {
+          const menuItems = [];
+          snapshot.forEach((doc) => {
+            menuItems.push({ id: doc.id, ...doc.data() });
+          });
+          callback(menuItems);
+        } catch (procErr) {
+          console.error('Error processing menu items update:', procErr);
+        }
+      },
+      (error) => {
+        console.warn('Error subscribing to menu items, falling back to getMenuItems:', error);
+        getMenuItems().then(items => {
+          if (items && items.length > 0) callback(items);
+        }).catch(e => console.error('Fallback getMenuItems failed:', e));
+      }
+    );
 
-  // Return wrapped unsubscribe for performance monitoring
-  return monitorFirestoreListener('menuItems_subscription', unsubscribe);
+    return monitorFirestoreListener('menuItems_subscription', unsubscribe);
+  } catch (err) {
+    console.warn('Caught synchronous error in subscribeToMenuItems, falling back to getMenuItems:', err);
+    getMenuItems().then(items => {
+      if (items && items.length > 0) callback(items);
+    }).catch(e => console.error('Fallback getMenuItems failed:', e));
+    return () => {};
+  }
 };
 
 // Add a new menu item with performance monitoring
@@ -1016,14 +1072,15 @@ export const bulkUpdateMenuItems = async (menuItems) => {
     menuItems.forEach(item => {
       if (item.id) {
         const docRef = doc(menuItemsCollection, String(item.id));
-        batch.update(docRef, {
+        const updateData = {
           sequence: item.sequence,
-          name: item.name,
-          price: item.price,
-          available: item.available,
-          version: (item.version || 0) + 1, // Increment version for conflict detection
           updatedAt: serverTimestamp()
-        });
+        };
+        if (item.name !== undefined) updateData.name = item.name;
+        if (item.price !== undefined) updateData.price = item.price;
+        if (item.available !== undefined) updateData.available = item.available;
+        if (item.version !== undefined) updateData.version = (item.version || 0) + 1;
+        batch.update(docRef, updateData);
       }
     });
 
@@ -1245,3 +1302,117 @@ export const getMenuItemsSelective = async (fields = ['name', 'price', 'availabl
 
 
 
+
+// ========================================================
+// Menu Category Operations (Custom Categories for POS)
+// ========================================================
+
+export const DEFAULT_MENU_CATEGORIES = [
+  { id: 'cat_nihari', name: 'Nalli Nihari', icon: '🍲', sequence: 1 },
+  { id: 'cat_roti', name: 'Roti', icon: '🫓', sequence: 2 },
+  { id: 'cat_biryani', name: 'Biryani & Rice', icon: '🍚', sequence: 3 },
+  { id: 'cat_starters', name: 'Starters', icon: '🍢', sequence: 4 },
+  { id: 'cat_main', name: 'Main Course', icon: '🍛', sequence: 5 },
+  { id: 'cat_beverages', name: 'Beverages', icon: '🥤', sequence: 6 },
+  { id: 'cat_dessert', name: 'Dessert', icon: '🍨', sequence: 7 },
+];
+
+export const subscribeToCategories = (callback) => {
+  if (typeof callback !== 'function') {
+    return () => {};
+  }
+
+  try {
+    const unsubscribe = onSnapshot(
+      query(categoriesCollection, orderBy('sequence', 'asc')),
+      (snapshot) => {
+        try {
+          if (snapshot.empty) {
+            callback(DEFAULT_MENU_CATEGORIES);
+            return;
+          }
+
+          const categories = [];
+          snapshot.forEach((docSnap) => {
+            categories.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          categories.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+          callback(categories.length > 0 ? categories : DEFAULT_MENU_CATEGORIES);
+        } catch (err) {
+          console.error('Error processing categories update:', err);
+          callback(DEFAULT_MENU_CATEGORIES);
+        }
+      },
+      (error) => {
+        console.error('Error in categories onSnapshot:', error);
+        callback(DEFAULT_MENU_CATEGORIES);
+      }
+    );
+
+    return monitorFirestoreListener('categories_subscription', unsubscribe);
+  } catch (err) {
+    console.error('Error setting up categories subscription:', err);
+    callback(DEFAULT_MENU_CATEGORIES);
+    return () => {};
+  }
+};
+
+export const addCategory = async (categoryData) => {
+  try {
+    const id = categoryData.id || ('cat_' + Date.now());
+    const name = (categoryData.name || '').trim();
+    if (!name) throw new Error('Category name is required');
+
+    const catPayload = {
+      name,
+      icon: categoryData.icon || '🍽️',
+      sequence: categoryData.sequence !== undefined ? categoryData.sequence : Date.now(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await monitorFirebaseOperation('addCategory', async () => {
+      await setDoc(doc(categoriesCollection, id), catPayload);
+    });
+
+    return id;
+  } catch (error) {
+    console.error('Error adding category:', error);
+    throw error;
+  }
+};
+
+export const updateCategory = async (categoryId, categoryData) => {
+  try {
+    const stringId = String(categoryId);
+    const updateData = {
+      updatedAt: serverTimestamp()
+    };
+
+    if (categoryData.name !== undefined) updateData.name = categoryData.name.trim();
+    if (categoryData.icon !== undefined) updateData.icon = categoryData.icon;
+    if (categoryData.sequence !== undefined) updateData.sequence = categoryData.sequence;
+
+    await monitorFirebaseOperation('updateCategory', async () => {
+      await updateDoc(doc(categoriesCollection, stringId), updateData);
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating category:', error);
+    throw error;
+  }
+};
+
+export const deleteCategory = async (categoryId) => {
+  try {
+    const stringId = String(categoryId);
+    await monitorFirebaseOperation('deleteCategory', async () => {
+      await deleteDoc(doc(categoriesCollection, stringId));
+    });
+    return true;
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    throw error;
+  }
+};
