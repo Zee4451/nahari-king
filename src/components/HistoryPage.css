@@ -512,6 +512,17 @@
   border-color: #86efac;
 }
 
+.history-action-btn.edit {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.history-action-btn.edit:hover {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+
 /* Empty State */
 .history-empty-state {
   text-align: center;

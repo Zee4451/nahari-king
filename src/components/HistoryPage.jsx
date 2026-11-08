@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import NavigationBar from './NavigationBar';
-import { subscribeToHistory } from '../services/firebaseService';
+import { subscribeToHistory, updateTable } from '../services/firebaseService';
 import { Timestamp } from 'firebase/firestore';
 import {
   Search,
@@ -17,7 +18,8 @@ import {
   Smartphone,
   CreditCard,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RotateCcw
 } from 'lucide-react';
 import { getDigitalReceiptUrl, openWhatsAppReceipt } from '../utils/receiptHelper';
 import './HistoryPage.css';
@@ -113,6 +115,36 @@ const HistoryPage = () => {
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'dine-in' | 'takeaway'
   const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'Cash' | 'UPI'
   const [expandedCards, setExpandedCards] = useState(new Set());
+  const navigate = useNavigate();
+
+  const handleReopenOrder = async (entry) => {
+    const isParcel = String(entry.tableId).startsWith('P-') || entry.orderType === 'takeaway';
+    const label = isParcel ? `Takeaway Order #${String(entry.tableId).replace('P-', '')}` : `Table ${entry.tableId}`;
+
+    const confirmMessage = `Reopen ${label} to remove the extra item and correct the bill?\n\nThis will restore the order back to the live POS screen.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const tableId = String(entry.tableId);
+      const restoredOrders = (Array.isArray(entry.orders) && entry.orders.length > 0)
+        ? entry.orders
+        : [{ id: 1, items: entry.items || [], total: Number(entry.total) || 0 }];
+
+      const restoredTable = {
+        id: tableId,
+        type: isParcel ? 'takeaway' : 'dine-in',
+        orders: restoredOrders,
+        total: Number(entry.total) || 0
+      };
+
+      await updateTable(tableId, restoredTable);
+      alert(`${label} has been restored! Taking you to the POS screen so you can remove the extra item.`);
+      navigate('/tables');
+    } catch (err) {
+      console.error('Error reopening order:', err);
+      alert('Could not reopen order. Please try again.');
+    }
+  };
 
   // Real-time subscription to Firebase order history
   useEffect(() => {
@@ -607,6 +639,16 @@ const HistoryPage = () => {
 
                   {/* Action Buttons Row */}
                   <div className="history-card-footer">
+                    <button
+                      type="button"
+                      onClick={() => handleReopenOrder(entry)}
+                      className="history-action-btn edit"
+                      title="Reopen order to remove mistaken items and correct bill"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Reopen & Fix</span>
+                    </button>
+
                     <a
                       href={digitalReceiptUrl}
                       target="_blank"
