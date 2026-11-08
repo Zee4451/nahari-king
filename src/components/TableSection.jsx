@@ -1827,6 +1827,15 @@ const TableSection = () => {
       <div
         className="mobile-floating-bill-bar"
         onClick={() => setIsMobileBillOpen(true)}
+        role="button"
+        tabIndex={0}
+        aria-label="View bill and order summary"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsMobileBillOpen(true);
+          }
+        }}
       >
         <div className="floating-bar-left">
           <span className="floating-table-badge">Table {currentTable}</span>
@@ -1838,7 +1847,12 @@ const TableSection = () => {
           <span className="floating-total-amt">
             ₹{currentTableData.total.toFixed(2)}
           </span>
-          <button type="button" className="floating-view-bill-btn">
+          <button
+            type="button"
+            className="floating-view-bill-btn"
+            tabIndex={-1}
+            aria-hidden="true"
+          >
             <span>View Bill</span>
             <ChevronUp size={16} />
           </button>
