@@ -422,7 +422,7 @@ export const getAllHistory = async () => {
       );
       const history = [];
       historySnapshot.forEach((doc) => {
-        history.push({ id: doc.id, ...doc.data() });
+        history.push({ ...doc.data(), id: doc.id, docId: doc.id });
       });
       return history;
     });
@@ -446,7 +446,7 @@ export const subscribeToHistory = (callback) => {
         try {
           const history = [];
           snapshot.forEach((doc) => {
-            history.push({ id: doc.id, ...doc.data() });
+            history.push({ ...doc.data(), id: doc.id, docId: doc.id });
           });
           callback(history);
         } catch (procErr) {
@@ -802,21 +802,33 @@ export const getTablesByIds = async (tableIds) => {
 };
 export const deleteHistory = async (historyId) => {
   try {
-    // Validate historyId is a string
-    if (typeof historyId !== 'string' && typeof historyId !== 'number') {
+    if (!historyId) {
       console.error('Invalid historyId:', historyId);
-      return;
+      return false;
     }
 
-    // Convert to string if it's a number
     const stringHistoryId = String(historyId);
 
-    // Monitor the operation
-    await monitorFirebaseOperation('deleteHistory', async () => {
-      await deleteDoc(doc(historyCollection, stringHistoryId));
+    return await monitorFirebaseOperation('deleteHistory', async () => {
+      const docRef = doc(historyCollection, stringHistoryId);
+      await deleteDoc(docRef);
+
+      // Also query by 'id' field in case document was stored with an auto-generated id
+      try {
+        const q = query(historyCollection, where('id', '==', stringHistoryId));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          const deletePromises = qSnap.docs.map((d) => deleteDoc(d.ref));
+          await Promise.all(deletePromises);
+        }
+      } catch (qErr) {
+        // Query fallback silent catch
+      }
+      return true;
     });
   } catch (error) {
     console.error('Error deleting history:', error);
+    return false;
   }
 };
 

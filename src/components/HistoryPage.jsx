@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavigationBar from './NavigationBar';
-import { subscribeToHistory, updateTable } from '../services/firebaseService';
+import { subscribeToHistory, updateTable, deleteHistory } from '../services/firebaseService';
 import { Timestamp } from 'firebase/firestore';
 import {
   Search,
@@ -19,7 +19,8 @@ import {
   CreditCard,
   ChevronDown,
   ChevronUp,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import { getDigitalReceiptUrl, openWhatsAppReceipt } from '../utils/receiptHelper';
 import './HistoryPage.css';
@@ -121,7 +122,7 @@ const HistoryPage = () => {
     const isParcel = String(entry.tableId).startsWith('P-') || entry.orderType === 'takeaway';
     const label = isParcel ? `Takeaway Order #${String(entry.tableId).replace('P-', '')}` : `Table ${entry.tableId}`;
 
-    const confirmMessage = `Reopen ${label} to remove the extra item and correct the bill?\n\nThis will restore the order back to the live POS screen.`;
+    const confirmMessage = `Reopen ${label} to remove the extra item and correct the bill?\n\nThis will restore the order to your live POS screen and remove this outdated bill from history so you don't get duplicate sales.`;
     if (!window.confirm(confirmMessage)) return;
 
     try {
@@ -137,12 +138,39 @@ const HistoryPage = () => {
         total: Number(entry.total) || 0
       };
 
+      // 1. Restore order to live table in POS
       await updateTable(tableId, restoredTable);
-      alert(`${label} has been restored! Taking you to the POS screen so you can remove the extra item.`);
+
+      // 2. Delete outdated bill from history to avoid duplicate entries & inflated revenue
+      const histId = entry.id || entry.docId;
+      if (histId) {
+        await deleteHistory(histId);
+      }
+
+      alert(`${label} restored to POS screen! You can now remove the extra item and re-settle.`);
       navigate('/tables');
     } catch (err) {
       console.error('Error reopening order:', err);
       alert('Could not reopen order. Please try again.');
+    }
+  };
+
+  const handleDeleteHistory = async (entry) => {
+    const isParcel = String(entry.tableId).startsWith('P-') || entry.orderType === 'takeaway';
+    const label = isParcel ? `Takeaway Order #${String(entry.tableId).replace('P-', '')}` : `Table ${entry.tableId}`;
+    const amount = Number(entry.total || 0).toFixed(2);
+
+    const confirmMessage = `Are you sure you want to permanently delete this bill from history?\n\n${label} — ₹${amount} (${formatTimestamp(entry.timestamp)})\n\nThis will remove it from Order History and update total sales.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const histId = entry.id || entry.docId;
+      if (histId) {
+        await deleteHistory(histId);
+      }
+    } catch (err) {
+      console.error('Error deleting history entry:', err);
+      alert('Failed to delete history entry. Please try again.');
     }
   };
 
@@ -680,6 +708,16 @@ const HistoryPage = () => {
                     >
                       <Printer size={14} />
                       <span>Print</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteHistory(entry)}
+                      className="history-action-btn delete"
+                      title="Delete this bill from history"
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>

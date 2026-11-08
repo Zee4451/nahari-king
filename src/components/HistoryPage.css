@@ -523,6 +523,17 @@
   border-color: #fb923c;
 }
 
+.history-action-btn.delete {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.history-action-btn.delete:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
 /* Empty State */
 .history-empty-state {
   text-align: center;
