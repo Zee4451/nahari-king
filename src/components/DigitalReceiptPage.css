@@ -122,6 +122,48 @@
   }
 }
 
+/* Google Review Banner Card */
+.google-review-card {
+  max-width: 440px;
+  width: 100%;
+  margin-top: 1.25rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 50%, #fef3c7 100%);
+  border: 1.5px solid #fde68a;
+  border-radius: 16px;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.12);
+  box-sizing: border-box;
+}
+
+.google-review-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+
+.google-review-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(217, 119, 6, 0.45);
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+}
+
+.google-review-btn:active {
+  transform: translateY(0);
+}
+
 @page digital-receipt {
   size: auto;
   margin: 10mm;

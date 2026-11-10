@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decodeReceiptData, openWhatsAppReceipt, formatBillNumber } from '../utils/receiptHelper';
 import { getHistoryDoc } from '../services/firebaseService';
-import { Printer, Share2, CheckCircle2, ArrowLeft, Loader2 } from 'lucide-react';
+import { getGoogleReviewUrl } from '../services/shiftService';
+import { Printer, Share2, CheckCircle2, ArrowLeft, Loader2, Star, ExternalLink } from 'lucide-react';
 import './DigitalReceiptPage.css';
 
 const DigitalReceiptPage = () => {
@@ -10,6 +11,15 @@ const DigitalReceiptPage = () => {
     const [receipt, setReceipt] = useState(null);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [googleReviewUrl, setGoogleReviewUrl] = useState('https://www.google.com/maps/search/?api=1&query=Nahari+King');
+
+    useEffect(() => {
+        getGoogleReviewUrl()
+            .then(url => {
+                if (url) setGoogleReviewUrl(url);
+            })
+            .catch(err => console.warn('Could not load review url:', err));
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -458,6 +468,61 @@ const DigitalReceiptPage = () => {
                         Fresh, slow-cooked Nihari served with love.
                     </p>
                 </div>
+            </div>
+
+            {/* ⭐ Google Review Card (High-Converting 5-Star Call to Action) */}
+            <div className="google-review-card no-print">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '8px' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <a
+                            key={star}
+                            href={googleReviewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Rate 5 stars on Google"
+                            style={{
+                                color: '#f59e0b',
+                                display: 'inline-flex',
+                                textDecoration: 'none',
+                                transition: 'transform 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                            <Star size={24} fill="#f59e0b" stroke="#d97706" />
+                        </a>
+                    ))}
+                </div>
+
+                <h3 style={{
+                    margin: '0 0 6px 0',
+                    fontSize: '1.08rem',
+                    fontWeight: 800,
+                    color: '#78350f',
+                    letterSpacing: '-0.2px'
+                }}>
+                    Loved the Nihari?
+                </h3>
+
+                <p style={{
+                    margin: '0 0 14px 0',
+                    fontSize: '0.84rem',
+                    color: '#92400e',
+                    lineHeight: 1.4
+                }}>
+                    Your 5-star review means everything to us! Tap below to rate us on Google Maps in 5 seconds.
+                </p>
+
+                <a
+                    href={googleReviewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="google-review-btn"
+                >
+                    <Star size={18} fill="#ffffff" stroke="#ffffff" />
+                    <span>⭐ Loved the Nihari? Rate us on Google!</span>
+                    <ExternalLink size={16} />
+                </a>
             </div>
         </div>
     );

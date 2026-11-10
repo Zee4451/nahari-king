@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../SettingsPage.module.css';
-import { getPaymentMethods, updatePaymentMethods } from '../../services/shiftService';
+import { getPaymentMethods, updatePaymentMethods, getGoogleReviewUrl, updateGoogleReviewUrl } from '../../services/shiftService';
 import { generateDataExport, downloadJsonFile } from '../../utils/exportUtils';
 import { performFactoryReset } from '../../utils/clearUtils';
 import { importDataToFirestore } from '../../utils/importUtils';
@@ -10,6 +10,11 @@ const PosConfig = () => {
     const [newPaymentMethod, setNewPaymentMethod] = useState('');
     const [isUpdatingMethods, setIsUpdatingMethods] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+
+    // Google Review Link State
+    const [googleReviewUrl, setGoogleReviewUrl] = useState('');
+    const [isSavingReviewUrl, setIsSavingReviewUrl] = useState(false);
+    const [reviewUrlSavedMsg, setReviewUrlSavedMsg] = useState('');
 
     // Import State
     const [isImporting, setIsImporting] = useState(false);
@@ -99,15 +104,22 @@ const PosConfig = () => {
     };
 
     useEffect(() => {
-        const loadMethods = async () => {
+        const loadConfig = async () => {
             try {
                 const loadedMethods = await getPaymentMethods();
                 setPaymentMethods(loadedMethods || ['Cash', 'UPI']);
             } catch (error) {
                 console.error('Error loading payment methods:', error);
             }
+
+            try {
+                const reviewUrl = await getGoogleReviewUrl();
+                setGoogleReviewUrl(reviewUrl || 'https://www.google.com/maps/search/?api=1&query=Nahari+King');
+            } catch (error) {
+                console.error('Error loading review url:', error);
+            }
         };
-        loadMethods();
+        loadConfig();
     }, []);
 
     const handleAddPaymentMethod = async () => {
@@ -143,10 +155,25 @@ const PosConfig = () => {
         setIsUpdatingMethods(false);
     };
 
+    const handleSaveReviewUrl = async () => {
+        setIsSavingReviewUrl(true);
+        setReviewUrlSavedMsg('');
+        try {
+            await updateGoogleReviewUrl(googleReviewUrl.trim());
+            setReviewUrlSavedMsg('Review link saved successfully!');
+            setTimeout(() => setReviewUrlSavedMsg(''), 3000);
+        } catch (error) {
+            alert('Failed to save Google Review link: ' + error.message);
+        } finally {
+            setIsSavingReviewUrl(false);
+        }
+    };
+
     return (
         <div className={styles['settings-section'] || 'settings-section'}>
             <h2>POS Configuration</h2>
 
+            {/* Payment Methods */}
             <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: 'var(--card-bg)' }}>
                 <h3>Payment Methods</h3>
                 <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem' }}>Add or remove custom digital payment methods (e.g. GooglePay, PhonePe). 'Cash' and 'UPI' are mandatory defaults.</p>
@@ -191,6 +218,67 @@ const PosConfig = () => {
                 </div>
             </div>
 
+            {/* ⭐ Google Review Link Configuration */}
+            <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: 'var(--card-bg)', marginTop: '2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '1.25rem' }}>⭐</span>
+                    <h3 style={{ margin: 0 }}>Google Review Link</h3>
+                </div>
+                <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem', marginTop: '0.25rem' }}>
+                    Customers viewing their digital receipt can tap one button to leave a 5-star review on Google Maps.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <input
+                        type="url"
+                        value={googleReviewUrl}
+                        onChange={(e) => setGoogleReviewUrl(e.target.value)}
+                        placeholder="https://g.page/r/.../review or Google Maps URL"
+                        className={styles['form-input'] || 'form-input'}
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                            className={styles['primary-btn'] || 'primary-btn'}
+                            onClick={handleSaveReviewUrl}
+                            disabled={isSavingReviewUrl || !googleReviewUrl.trim()}
+                            style={{ backgroundColor: '#f59e0b', color: '#000', fontWeight: 700 }}
+                        >
+                            {isSavingReviewUrl ? 'Saving...' : 'Save Review Link'}
+                        </button>
+                        <a
+                            href={googleReviewUrl || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles['secondary-btn'] || 'secondary-btn'}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '8px 14px',
+                                borderRadius: '8px',
+                                textDecoration: 'none',
+                                border: '1px solid var(--border-color, #cbd5e1)',
+                                fontSize: '0.85rem',
+                                color: 'var(--text-color, #334155)',
+                                backgroundColor: 'var(--page-bg, #f8fafc)'
+                            }}
+                        >
+                            <span>Test Link ↗</span>
+                        </a>
+                        {reviewUrlSavedMsg && (
+                            <span style={{ color: '#16a34a', fontSize: '0.85rem', fontWeight: 600 }}>
+                                ✓ {reviewUrlSavedMsg}
+                            </span>
+                        )}
+                    </div>
+                    <small style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                        Tip: In Google Business Profile, go to <strong>"Ask for reviews"</strong> and copy your short link (e.g. <code>https://g.page/r/.../review</code>).
+                    </small>
+                </div>
+            </div>
+
+            {/* Data Management */}
             <div className={styles['analytics-card'] || 'analytics-card'} style={{ maxWidth: '600px', backgroundColor: 'var(--card-bg)', marginTop: '2rem' }}>
                 <h3>Data Management</h3>
                 <p className={styles['metric-subtitle'] || 'metric-subtitle'} style={{ marginBottom: '1rem' }}>

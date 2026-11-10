@@ -176,6 +176,39 @@ export const getPaymentMethods = async () => {
     });
 };
 
+// --- Google Business / Maps Review Link Configuration --- //
+export const getGoogleReviewUrl = async () => {
+    try {
+        const snap = await getDoc(settingsDoc);
+        if (snap.exists() && snap.data().googleReviewUrl) {
+            return snap.data().googleReviewUrl;
+        }
+    } catch (error) {
+        console.warn('Error fetching google review url from firestore:', error);
+    }
+
+    if (typeof window !== 'undefined') {
+        const local = localStorage.getItem('nahari_king_google_review_url');
+        if (local) return local;
+    }
+
+    return 'https://www.google.com/maps/search/?api=1&query=Nahari+King';
+};
+
+export const updateGoogleReviewUrl = async (url) => {
+    return await monitorFirebaseOperation('updateGoogleReviewUrl', async () => {
+        try {
+            await setDoc(settingsDoc, { googleReviewUrl: url }, { merge: true });
+        } catch (error) {
+            console.warn('Error saving google review url to firestore:', error);
+        }
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('nahari_king_google_review_url', url);
+        }
+        return true;
+    });
+};
+
 export const updatePaymentMethods = async (methods) => {
     return await monitorFirebaseOperation('updatePaymentMethods', async () => {
         try {
