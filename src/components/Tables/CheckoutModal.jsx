@@ -100,14 +100,15 @@ const CheckoutModal = () => {
         };
     }, [targetTableId, hasBothSubtotals, parcelSubtotal, dineInSubtotal, billItems, checkoutModal.total]);
 
-    // Generate QR Code when modal opens or toggle activated
+    // Generate QR Code when modal opens or checkout completes
     useEffect(() => {
         if (checkoutModal.isOpen) {
-            generateReceiptQRCode(receiptData).then(url => {
+            const activeData = completedReceipt || receiptData;
+            generateReceiptQRCode(activeData).then(url => {
                 if (url) setQrCodeUrl(url);
             });
         }
-    }, [checkoutModal.isOpen, receiptData]);
+    }, [checkoutModal.isOpen, receiptData, completedReceipt]);
 
     if (!checkoutModal.isOpen) return null;
 
@@ -139,11 +140,7 @@ const CheckoutModal = () => {
 
         setIsSubmitting(true);
         try {
-            const finalReceipt = {
-                ...receiptData,
-                paymentMethod,
-                timestamp: new Date().toLocaleString('en-IN')
-            };
+            const historyId = Date.now().toString() + Math.random().toString(36).substr(2, 6);
 
             if (type === 'order') {
                 const { orderToClear } = itemsToClear;
@@ -153,6 +150,7 @@ const CheckoutModal = () => {
                     : (hasBothSubtotals ? 'dine-in + parcel' : (parcelSubtotal > 0 ? 'takeaway' : 'dine-in'));
 
                 const historyEntry = {
+                    id: historyId,
                     billNo: receiptData.billNo,
                     tableId: tgtTableId,
                     orderType: finalOrderType,
@@ -175,7 +173,7 @@ const CheckoutModal = () => {
                     : (hasBothSubtotals ? 'dine-in + parcel' : (parcelSubtotal > 0 ? 'takeaway' : 'dine-in'));
 
                 const historyEntry = {
-                    id: Date.now().toString(),
+                    id: historyId,
                     billNo: receiptData.billNo,
                     tableId: targetId,
                     orderType: finalOrderType,
@@ -191,6 +189,14 @@ const CheckoutModal = () => {
                 await addHistoryFirebase(historyEntry);
                 clearTable(targetId);
             }
+
+            const finalReceipt = {
+                ...receiptData,
+                id: historyId,
+                docId: historyId,
+                paymentMethod,
+                timestamp: new Date().toLocaleString('en-IN')
+            };
 
             // Switch to success view showing the completed receipt with QR & WhatsApp
             setCompletedReceipt(finalReceipt);

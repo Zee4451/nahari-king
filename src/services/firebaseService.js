@@ -482,7 +482,7 @@ export const addHistory = async (historyEntry) => {
       return false;
     }
 
-    const historyId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const historyId = historyEntry.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9));
 
     // Monitor the operation
     await monitorFirebaseOperation('addHistory', async () => {
@@ -494,6 +494,7 @@ export const addHistory = async (historyEntry) => {
 
       batch.set(doc(historyCollection, historyId), {
         ...historyEntry,
+        id: historyId,
         paymentMethod,
         shiftId,
         timestamp: serverTimestamp()
@@ -573,7 +574,7 @@ export const addHistory = async (historyEntry) => {
     });
 
     console.log('History entry added successfully with ID:', historyId);
-    return true;
+    return historyId;
   } catch (error) {
     console.error('Error adding history:', error);
     return false;
@@ -800,6 +801,59 @@ export const getTablesByIds = async (tableIds) => {
     return {};
   }
 };
+
+/**
+ * Fetches a single history document by Firestore Document ID, internal 'id', or 'billNo'
+ */
+export const getHistoryDoc = async (idOrBillNo) => {
+  try {
+    if (!idOrBillNo) return null;
+    const str = String(idOrBillNo).trim();
+
+    return await monitorFirebaseOperation('getHistoryDoc', async () => {
+      // 1. Direct document lookup by doc ID
+      try {
+        const docRef = doc(historyCollection, str);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          return { ...snap.data(), id: snap.id, docId: snap.id };
+        }
+      } catch (e) {
+        // Document lookup fallback
+      }
+
+      // 2. Query by 'id' field
+      try {
+        const q1 = query(historyCollection, where('id', '==', str), limit(1));
+        const snap1 = await getDocs(q1);
+        if (!snap1.empty) {
+          const d = snap1.docs[0];
+          return { ...d.data(), id: d.id, docId: d.id };
+        }
+      } catch (e) {
+        // Query fallback
+      }
+
+      // 3. Query by 'billNo' field
+      try {
+        const q2 = query(historyCollection, where('billNo', '==', str), limit(1));
+        const snap2 = await getDocs(q2);
+        if (!snap2.empty) {
+          const d = snap2.docs[0];
+          return { ...d.data(), id: d.id, docId: d.id };
+        }
+      } catch (e) {
+        // Query fallback
+      }
+
+      return null;
+    });
+  } catch (error) {
+    console.error('Error fetching history doc:', error);
+    return null;
+  }
+};
+
 export const deleteHistory = async (historyId) => {
   try {
     if (!historyId) {

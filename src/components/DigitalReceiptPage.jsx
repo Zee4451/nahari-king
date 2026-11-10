@@ -1,38 +1,144 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decodeReceiptData, openWhatsAppReceipt, formatBillNumber } from '../utils/receiptHelper';
-import { Printer, Share2, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { getHistoryDoc } from '../services/firebaseService';
+import { Printer, Share2, CheckCircle2, ArrowLeft, Loader2 } from 'lucide-react';
 import './DigitalReceiptPage.css';
 
 const DigitalReceiptPage = () => {
     const [searchParams] = useSearchParams();
     const [receipt, setReceipt] = useState(null);
     const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        let payload = searchParams.get('d');
-        if (!payload && typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            payload = urlParams.get('d');
-            if (!payload && window.location.hash) {
-                const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-                payload = hashParams.get('d');
+        let isMounted = true;
+
+        const loadReceipt = async () => {
+            setLoading(true);
+            setError(null);
+
+            // 1. Check for Firestore Document ID or bill reference: ?id=... or ?ref=... or ?bill=...
+            let docId = searchParams.get('id');
+            let billRef = searchParams.get('ref') || searchParams.get('bill');
+            let payload = searchParams.get('d');
+
+            if (typeof window !== 'undefined') {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (!docId) docId = urlParams.get('id');
+                if (!billRef) billRef = urlParams.get('ref') || urlParams.get('bill');
+                if (!payload) payload = urlParams.get('d');
+
+                if (!docId && !billRef && !payload && window.location.hash) {
+                    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+                    docId = hashParams.get('id');
+                    billRef = hashParams.get('ref') || hashParams.get('bill');
+                    payload = hashParams.get('d');
+                }
             }
-        }
 
-        if (!payload) {
-            setError('No receipt data found in link. Please ask the cashier to scan or share again.');
-            return;
-        }
+            // A. Fetch from Firestore by document ID or bill reference (Primary & ultra-reliable)
+            if (docId || billRef) {
+                try {
+                    const docData = await getHistoryDoc(docId || billRef);
+                    if (docData && isMounted) {
+                        const normalizedItems = [];
+                        if (Array.isArray(docData.orders)) {
+                            docData.orders.forEach(order => {
+                                (order?.items || []).forEach(it => {
+                                    const isItemParcel = it.isParcel || String(it.id).endsWith('_parcel');
+                                    normalizedItems.push({
+                                        id: it.id,
+                                        name: it.name,
+                                        price: Number(it.price) || 0,
+                                        quantity: Number(it.quantity) || 1,
+                                        isParcel: isItemParcel
+                                    });
+                                });
+                            });
+                        } else if (Array.isArray(docData.items)) {
+                            docData.items.forEach(it => {
+                                normalizedItems.push({
+                                    id: it.id,
+                                    name: it.name,
+                                    price: Number(it.price) || 0,
+                                    quantity: Number(it.quantity) || 1,
+                                    isParcel: !!it.isParcel
+                                });
+                            });
+                        }
 
-        const data = decodeReceiptData(payload);
-        if (!data) {
-            setError('Could not decode receipt details. Please scan the QR code again.');
-            return;
-        }
+                        let formattedDate = '';
+                        if (docData.timestamp) {
+                            if (typeof docData.timestamp?.toDate === 'function') {
+                                formattedDate = docData.timestamp.toDate().toLocaleString('en-IN');
+                            } else {
+                                formattedDate = String(docData.timestamp);
+                            }
+                        }
 
-        setReceipt(data);
+                        const normalizedReceipt = {
+                            id: docData.id || docData.docId,
+                            docId: docData.docId || docData.id,
+                            billNo: docData.billNo || docData.id,
+                            tableId: docData.tableId,
+                            orderType: docData.orderType,
+                            items: normalizedItems,
+                            dineInSubtotal: Number(docData.dineInSubtotal) || 0,
+                            parcelSubtotal: Number(docData.parcelSubtotal) || 0,
+                            total: Number(docData.total) || 0,
+                            paymentMethod: docData.paymentMethod || 'Paid',
+                            timestamp: formattedDate || new Date().toLocaleString('en-IN')
+                        };
+
+                        setReceipt(normalizedReceipt);
+                        setLoading(false);
+                        return;
+                    }
+                } catch (fetchErr) {
+                    console.error('Error fetching receipt from Firestore:', fetchErr);
+                }
+            }
+
+            // B. Decode Base64 payload if provided (Fallback for offline/instant mode)
+            if (payload) {
+                const data = decodeReceiptData(payload);
+                if (data && isMounted) {
+                    setReceipt(data);
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            if (isMounted) {
+                setLoading(false);
+                setError('No receipt data found or the link has expired. Please ask the restaurant to share or scan again.');
+            }
+        };
+
+        loadReceipt();
+
+        return () => {
+            isMounted = false;
+        };
     }, [searchParams]);
+
+    if (loading) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#f8fafc',
+                gap: '12px'
+            }}>
+                <Loader2 size={36} className="animate-spin" style={{ color: '#2563eb' }} />
+                <p style={{ color: '#64748b', fontWeight: 600, fontSize: '0.95rem' }}>Loading official digital receipt...</p>
+            </div>
+        );
+    }
 
     if (error) {
         return (

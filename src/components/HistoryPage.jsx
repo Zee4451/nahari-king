@@ -503,6 +503,8 @@ const HistoryPage = () => {
               // Build normalized receipt object for digital receipt & WhatsApp actions
               const cleanBillNo = formatBillNumber(entry.billNo || entry.id);
               const receiptData = {
+                id: entry.id || entry.docId,
+                docId: entry.docId || entry.id,
                 billNo: cleanBillNo,
                 tableId: entry.tableId,
                 orderType: entry.orderType || (isParcel ? 'takeaway' : 'dine-in'),

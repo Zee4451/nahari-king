@@ -11,19 +11,40 @@ export const formatBillNumber = (rawId) => {
 };
 
 /**
- * Encodes order details into a URL-safe Base64 string
+ * Encodes order details into a URL-safe, WhatsApp-safe Base64 string.
+ * Minifies keys and avoids underscores '_' which WhatsApp turns into italics!
  */
 export const encodeReceiptData = (receipt) => {
     try {
-        const json = JSON.stringify(receipt);
+        if (!receipt) return '';
+        // Minify keys to produce ultra-compact payload
+        const minified = {
+            b: receipt.billNo,
+            t: receipt.tableId,
+            o: receipt.orderType,
+            i: (receipt.items || []).map(it => [
+                it.name,
+                Number(it.price) || 0,
+                Number(it.quantity) || 1,
+                it.isParcel ? 1 : 0
+            ]),
+            ds: Number(receipt.dineInSubtotal) || 0,
+            ps: Number(receipt.parcelSubtotal) || 0,
+            tot: Number(receipt.total) || 0,
+            pm: receipt.paymentMethod || 'Cash',
+            ts: receipt.timestamp || ''
+        };
+
+        const json = JSON.stringify(minified);
         const utf8Bytes = new TextEncoder().encode(json);
         let binary = '';
         for (let i = 0; i < utf8Bytes.length; i++) {
             binary += String.fromCharCode(utf8Bytes[i]);
         }
+        // Use '.' instead of '_' so WhatsApp markdown won't parse it as italics!
         return btoa(binary)
             .replace(/\+/g, '-')
-            .replace(/\//g, '_')
+            .replace(/\//g, '.')
             .replace(/=+$/, '');
     } catch (e) {
         console.error('Error encoding receipt data:', e);
@@ -32,14 +53,16 @@ export const encodeReceiptData = (receipt) => {
 };
 
 /**
- * Decodes URL-safe Base64 string back into receipt object
+ * Decodes URL-safe Base64 string back into receipt object.
+ * Robust against trailing dashes or spaces attached by chat apps.
  */
 export const decodeReceiptData = (encodedStr) => {
     try {
         if (!encodedStr) return null;
-        let base64 = String(encodedStr)
+        let clean = String(encodedStr).trim().replace(/[-]+$/, '');
+        let base64 = clean
             .replace(/-/g, '+')
-            .replace(/_/g, '/')
+            .replace(/[\._]/g, '/')
             .replace(/ /g, '+');
 
         // Restore padding
@@ -53,7 +76,29 @@ export const decodeReceiptData = (encodedStr) => {
             bytes[i] = binary.charCodeAt(i);
         }
         const json = new TextDecoder().decode(bytes);
-        return JSON.parse(json);
+        const parsed = JSON.parse(json);
+
+        // Normalize minified schema
+        if (parsed.b !== undefined && parsed.i !== undefined) {
+            return {
+                billNo: parsed.b,
+                tableId: parsed.t,
+                orderType: parsed.o,
+                items: (parsed.i || []).map(arr => ({
+                    name: arr[0],
+                    price: arr[1],
+                    quantity: arr[2],
+                    isParcel: !!arr[3]
+                })),
+                dineInSubtotal: parsed.ds || 0,
+                parcelSubtotal: parsed.ps || 0,
+                total: parsed.tot || 0,
+                paymentMethod: parsed.pm || 'Cash',
+                timestamp: parsed.ts || ''
+            };
+        }
+
+        return parsed;
     } catch (e) {
         console.error('Error decoding receipt data:', e);
         return null;
@@ -62,6 +107,7 @@ export const decodeReceiptData = (encodedStr) => {
 
 /**
  * Generates the full digital receipt link.
+ * PREFERS clean short URL with ?id= when document ID exists (ultra-safe for WhatsApp).
  * ALWAYS uses the live production URL if running on localhost,
  * so that mobile phones scanning the QR code from the laptop screen can actually reach the page!
  */
@@ -74,6 +120,16 @@ export const getDigitalReceiptUrl = (receiptData) => {
             origin = window.location.origin;
         }
     }
+
+    if (!receiptData) return `${origin}/receipt`;
+
+    // 1. If stored in Firestore, use ultra-clean short ID link (never gets broken by WhatsApp or chat apps)
+    const docId = receiptData.docId || receiptData.id;
+    if (docId) {
+        return `${origin}/receipt?id=${encodeURIComponent(docId)}`;
+    }
+
+    // 2. Compact payload fallback
     const payload = encodeReceiptData(receiptData);
     return `${origin}/receipt?d=${payload}`;
 };
@@ -146,7 +202,9 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl) => {
 
     if (digitalReceiptUrl) {
         lines.push(`📄 *View Official Digital Receipt:*`);
-        lines.push(`${digitalReceiptUrl}`);
+        lines.push(digitalReceiptUrl);
+        lines.push(``);
+        lines.push(`_(Tip: If the link is not clickable, please reply "Hi" or save this contact to activate)_`);
         lines.push(`------------------------------------`);
     }
 
