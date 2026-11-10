@@ -1,9 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { decodeReceiptData, openWhatsAppReceipt, formatBillNumber } from '../utils/receiptHelper';
 import { getHistoryDoc } from '../services/firebaseService';
 import { getGoogleReviewUrl } from '../services/shiftService';
-import { Printer, Share2, CheckCircle2, ArrowLeft, Loader2, Star, ExternalLink } from 'lucide-react';
+import { getSmartReviews, PRAISE_TAGS } from '../utils/reviewGenerator';
+import {
+    Printer,
+    Share2,
+    CheckCircle2,
+    ArrowLeft,
+    Loader2,
+    Star,
+    ExternalLink,
+    Sparkles,
+    Shuffle,
+    Copy,
+    Check
+} from 'lucide-react';
 import './DigitalReceiptPage.css';
 
 const DigitalReceiptPage = () => {
@@ -12,6 +25,11 @@ const DigitalReceiptPage = () => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
     const [googleReviewUrl, setGoogleReviewUrl] = useState('https://www.google.com/maps/search/?api=1&query=Nahari+King');
+
+    // Smart Review Assistant State
+    const [reviewIndex, setReviewIndex] = useState(0);
+    const [selectedTags, setSelectedTags] = useState([]);
+    const [copiedReview, setCopiedReview] = useState(false);
 
     useEffect(() => {
         getGoogleReviewUrl()
@@ -222,6 +240,46 @@ const DigitalReceiptPage = () => {
 
     const isParcel = String(tableId).startsWith('P-') || orderType === 'takeaway';
     const hasBothSubtotals = dineInSubtotal > 0 && parcelSubtotal > 0;
+
+    // Smart Review Generation
+    const smartReviews = useMemo(() => {
+        if (!receipt) return [];
+        return getSmartReviews(items, isParcel);
+    }, [items, isParcel, receipt]);
+
+    const baseReview = smartReviews.length > 0
+        ? smartReviews[reviewIndex % smartReviews.length]
+        : "The Nalli Nihari here is an absolute masterpiece! Meat was super tender, falling right off the bone, and the rich spicy marrow gravy paired with piping hot Khamiri roti was heavenly. Best Nihari in town! ⭐⭐⭐⭐⭐";
+
+    const fullReviewText = useMemo(() => {
+        if (selectedTags.length === 0) return baseReview;
+        const tagSentences = selectedTags.map(id => {
+            const found = PRAISE_TAGS.find(t => t.id === id);
+            return found ? found.text : '';
+        }).filter(Boolean).join(' ');
+        return `${baseReview} ${tagSentences}`;
+    }, [baseReview, selectedTags]);
+
+    const handleToggleTag = (tagId) => {
+        setSelectedTags(prev =>
+            prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+        );
+    };
+
+    const handleShuffleReview = () => {
+        if (smartReviews.length > 0) {
+            setReviewIndex(prev => (prev + 1) % smartReviews.length);
+        }
+    };
+
+    const handleCopyAndOpenGoogle = () => {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(fullReviewText).catch(() => {});
+        }
+        setCopiedReview(true);
+        setTimeout(() => setCopiedReview(false), 4000);
+        window.open(googleReviewUrl, '_blank', 'noopener,noreferrer');
+    };
 
     return (
         <div className="digital-receipt-wrapper" style={{
@@ -470,59 +528,110 @@ const DigitalReceiptPage = () => {
                 </div>
             </div>
 
-            {/* ⭐ Google Review Card (High-Converting 5-Star Call to Action) */}
+            {/* ⭐ Google Review Card (1-Tap Smart Review Assistant) */}
             <div className="google-review-card no-print">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '6px' }}>
                     {[1, 2, 3, 4, 5].map((star) => (
-                        <a
+                        <button
                             key={star}
-                            href={googleReviewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            type="button"
+                            onClick={handleCopyAndOpenGoogle}
                             title="Rate 5 stars on Google"
                             style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                cursor: 'pointer',
                                 color: '#f59e0b',
                                 display: 'inline-flex',
-                                textDecoration: 'none',
                                 transition: 'transform 0.15s ease'
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
                             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                         >
                             <Star size={24} fill="#f59e0b" stroke="#d97706" />
-                        </a>
+                        </button>
                     ))}
                 </div>
 
                 <h3 style={{
-                    margin: '0 0 6px 0',
+                    margin: '0 0 4px 0',
                     fontSize: '1.08rem',
                     fontWeight: 800,
                     color: '#78350f',
                     letterSpacing: '-0.2px'
                 }}>
-                    Loved the Nihari?
+                    Loved the Nihari? We wrote your review! ✨
                 </h3>
 
                 <p style={{
-                    margin: '0 0 14px 0',
-                    fontSize: '0.84rem',
+                    margin: '0 0 10px 0',
+                    fontSize: '0.82rem',
                     color: '#92400e',
                     lineHeight: 1.4
                 }}>
-                    Your 5-star review means everything to us! Tap below to rate us on Google Maps in 5 seconds.
+                    Too lazy to type? Tap below to auto-copy this 5-star review and open Google Maps in 5 seconds!
                 </p>
 
-                <a
-                    href={googleReviewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                {/* Pre-written Smart Review Bubble */}
+                <div className="review-bubble">
+                    <div className="review-bubble-header">
+                        <span className="review-bubble-label">
+                            <Sparkles size={13} color="#d97706" />
+                            <span>1-Tap Ready Review</span>
+                        </span>
+                        <button
+                            type="button"
+                            className="review-bubble-shuffle-btn"
+                            onClick={handleShuffleReview}
+                            title="Generate another review variation"
+                        >
+                            <Shuffle size={12} />
+                            <span>Try Another</span>
+                        </button>
+                    </div>
+                    <p className="review-bubble-text">
+                        "{fullReviewText}"
+                    </p>
+                </div>
+
+                {/* Quick 1-Tap Praise Tags */}
+                <div className="review-tag-row">
+                    {PRAISE_TAGS.map((tag) => {
+                        const isSelected = selectedTags.includes(tag.id);
+                        return (
+                            <button
+                                key={tag.id}
+                                type="button"
+                                className={`review-tag-pill ${isSelected ? 'active' : ''}`}
+                                onClick={() => handleToggleTag(tag.id)}
+                                title={isSelected ? 'Remove tag' : 'Add tag to review'}
+                            >
+                                {isSelected ? `✓ ${tag.label}` : `+ ${tag.label}`}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Copied Banner Alert */}
+                {copiedReview && (
+                    <div className="review-copied-alert">
+                        <Check size={16} />
+                        <span>✓ Review copied! Just tap 5 stars & paste on Google.</span>
+                    </div>
+                )}
+
+                {/* Primary Copy & Open Google Button */}
+                <button
+                    type="button"
+                    onClick={handleCopyAndOpenGoogle}
                     className="google-review-btn"
+                    style={{ border: 'none', cursor: 'pointer' }}
                 >
-                    <Star size={18} fill="#ffffff" stroke="#ffffff" />
-                    <span>⭐ Loved the Nihari? Rate us on Google!</span>
+                    {copiedReview ? <Check size={18} /> : <Copy size={18} />}
+                    <span>{copiedReview ? 'Copied! Opening Google Reviews...' : '📋 Copy Review & Open Google Maps (5★)'}</span>
                     <ExternalLink size={16} />
-                </a>
+                </button>
             </div>
         </div>
     );

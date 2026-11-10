@@ -708,7 +708,7 @@ const HistoryPage = () => {
 
                     <button
                       type="button"
-                      onClick={() => openWhatsAppReviewRequest(entry.customerPhone || '')}
+                      onClick={() => openWhatsAppReviewRequest(entry.customerPhone || '', null, items, isParcel)}
                       className="history-action-btn review"
                       title="Send Google Review invitation on WhatsApp"
                     >

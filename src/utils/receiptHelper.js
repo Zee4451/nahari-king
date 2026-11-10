@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { getRandomReview } from './reviewGenerator';
 
 /**
  * Formats a raw timestamp or Firestore document ID into a clean 6-digit Bill Reference
@@ -224,6 +225,10 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl, review
         lines.push(`⭐ *Loved our Nihari? Rate us on Google:*`);
         lines.push(reviewLink);
         lines.push(``);
+        const quickReview = getRandomReview(items, isParcel);
+        lines.push(`💡 _No time to type? Just copy & paste this review:_`);
+        lines.push(`"${quickReview}"`);
+        lines.push(``);
     }
 
     if (digitalReceiptUrl || reviewLink) {
@@ -238,10 +243,11 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl, review
 };
 
 /**
- * Formats a dedicated, polite WhatsApp Review Request message
+ * Formats a dedicated, polite WhatsApp Review Request message with ready-to-paste review
  */
-export const formatWhatsAppReviewRequestText = (reviewUrl) => {
+export const formatWhatsAppReviewRequestText = (reviewUrl, items = [], isParcel = false) => {
     const link = reviewUrl || getStoredGoogleReviewUrl();
+    const readyReview = getRandomReview(items, isParcel);
     let lines = [];
     lines.push(`🍽️ *NAHARI KING* 🍽️`);
     lines.push(`*Authentic Nalli Nihari & Mughlai Cuisine*`);
@@ -252,7 +258,10 @@ export const formatWhatsAppReviewRequestText = (reviewUrl) => {
     lines.push(`⭐ *Loved the Nihari? Please rate us 5 stars on Google:*`);
     lines.push(link);
     lines.push(``);
-    lines.push(`Your review takes just 10 seconds and helps our team serve you better! ❤️`);
+    lines.push(`💡 _Too lazy to type? Copy & paste this 5-star review:_`);
+    lines.push(`"${readyReview}"`);
+    lines.push(``);
+    lines.push(`Your review takes just 5 seconds and means the world to our team! ❤️`);
     lines.push(`------------------------------------`);
     lines.push(`_Nahari King Team_ ✨`);
     return lines.join('\n');
@@ -286,8 +295,8 @@ export const openWhatsAppReceipt = (receiptData, customerPhone = '', reviewUrl) 
 /**
  * Opens WhatsApp Click-to-Chat with pre-filled dedicated Review Request
  */
-export const openWhatsAppReviewRequest = (customerPhone = '', reviewUrl) => {
-    const message = formatWhatsAppReviewRequestText(reviewUrl);
+export const openWhatsAppReviewRequest = (customerPhone = '', reviewUrl, items = [], isParcel = false) => {
+    const message = formatWhatsAppReviewRequestText(reviewUrl, items, isParcel);
     const cleanPhone = String(customerPhone || '').replace(/\D/g, '');
 
     let targetPhone = cleanPhone;

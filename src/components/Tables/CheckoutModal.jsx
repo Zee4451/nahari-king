@@ -120,7 +120,9 @@ const CheckoutModal = () => {
     };
 
     const handleSendReviewWhatsApp = () => {
-        openWhatsAppReviewRequest(customerPhone);
+        const activeData = completedReceipt || receiptData;
+        const isTakeaway = String(activeData?.tableId || '').startsWith('P-') || activeData?.orderType === 'takeaway';
+        openWhatsAppReviewRequest(customerPhone, null, activeData?.items || [], isTakeaway);
     };
 
     const handleCopyLink = () => {
