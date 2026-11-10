@@ -158,9 +158,20 @@ export const generateReceiptQRCode = async (receiptData) => {
 };
 
 /**
- * Formats a clean WhatsApp text receipt
+ * Retrieves the stored Google Review URL from localStorage, or returns default fallback
  */
-export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl) => {
+export const getStoredGoogleReviewUrl = () => {
+    if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('nahari_king_google_review_url');
+        if (stored) return stored;
+    }
+    return 'https://www.google.com/maps/search/?api=1&query=Nahari+King';
+};
+
+/**
+ * Formats a clean WhatsApp text receipt with e-bill link & Google Review link
+ */
+export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl, reviewUrl) => {
     const {
         billNo,
         tableId,
@@ -206,7 +217,17 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl) => {
         lines.push(`📄 *View Official Digital Receipt:*`);
         lines.push(digitalReceiptUrl);
         lines.push(``);
-        lines.push(`_(Tip: If the link is not clickable, please reply "Hi" or save this contact to activate)_`);
+    }
+
+    const reviewLink = reviewUrl || getStoredGoogleReviewUrl();
+    if (reviewLink) {
+        lines.push(`⭐ *Loved our Nihari? Rate us on Google:*`);
+        lines.push(reviewLink);
+        lines.push(``);
+    }
+
+    if (digitalReceiptUrl || reviewLink) {
+        lines.push(`_(Tip: If links are not clickable, please reply "Hi" or save this contact to activate)_`);
         lines.push(`------------------------------------`);
     }
 
@@ -217,11 +238,32 @@ export const formatWhatsAppReceiptText = (receiptData, digitalReceiptUrl) => {
 };
 
 /**
+ * Formats a dedicated, polite WhatsApp Review Request message
+ */
+export const formatWhatsAppReviewRequestText = (reviewUrl) => {
+    const link = reviewUrl || getStoredGoogleReviewUrl();
+    let lines = [];
+    lines.push(`🍽️ *NAHARI KING* 🍽️`);
+    lines.push(`*Authentic Nalli Nihari & Mughlai Cuisine*`);
+    lines.push(`------------------------------------`);
+    lines.push(`Dear Guest, thank you for dining with us! 🙏`);
+    lines.push(`We hope you loved your food and had a memorable experience.`);
+    lines.push(``);
+    lines.push(`⭐ *Loved the Nihari? Please rate us 5 stars on Google:*`);
+    lines.push(link);
+    lines.push(``);
+    lines.push(`Your review takes just 10 seconds and helps our team serve you better! ❤️`);
+    lines.push(`------------------------------------`);
+    lines.push(`_Nahari King Team_ ✨`);
+    return lines.join('\n');
+};
+
+/**
  * Opens WhatsApp Click-to-Chat with pre-filled receipt
  */
-export const openWhatsAppReceipt = (receiptData, customerPhone = '') => {
+export const openWhatsAppReceipt = (receiptData, customerPhone = '', reviewUrl) => {
     const receiptUrl = getDigitalReceiptUrl(receiptData);
-    const message = formatWhatsAppReceiptText(receiptData, receiptUrl);
+    const message = formatWhatsAppReceiptText(receiptData, receiptUrl, reviewUrl);
     const cleanPhone = String(customerPhone || '').replace(/\D/g, '');
 
     // Format for India (+91) if 10-digit number is provided
@@ -235,6 +277,28 @@ export const openWhatsAppReceipt = (receiptData, customerPhone = '') => {
         waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
     } else {
         // Lets cashier choose contact in WhatsApp
+        waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    }
+
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+};
+
+/**
+ * Opens WhatsApp Click-to-Chat with pre-filled dedicated Review Request
+ */
+export const openWhatsAppReviewRequest = (customerPhone = '', reviewUrl) => {
+    const message = formatWhatsAppReviewRequestText(reviewUrl);
+    const cleanPhone = String(customerPhone || '').replace(/\D/g, '');
+
+    let targetPhone = cleanPhone;
+    if (cleanPhone.length === 10) {
+        targetPhone = `91${cleanPhone}`;
+    }
+
+    let waUrl;
+    if (targetPhone.length >= 10) {
+        waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+    } else {
         waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
     }
 

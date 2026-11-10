@@ -5,6 +5,7 @@ import { getPaymentMethods } from '../../services/shiftService';
 import {
     generateReceiptQRCode,
     openWhatsAppReceipt,
+    openWhatsAppReviewRequest,
     getDigitalReceiptUrl
 } from '../../utils/receiptHelper';
 import {
@@ -15,7 +16,8 @@ import {
     Check,
     ArrowRight,
     UtensilsCrossed,
-    ShoppingBag
+    ShoppingBag,
+    Star
 } from 'lucide-react';
 
 const CheckoutModal = () => {
@@ -115,6 +117,10 @@ const CheckoutModal = () => {
     const handleSendWhatsApp = () => {
         const activeData = completedReceipt || receiptData;
         openWhatsAppReceipt(activeData, customerPhone);
+    };
+
+    const handleSendReviewWhatsApp = () => {
+        openWhatsAppReviewRequest(customerPhone);
     };
 
     const handleCopyLink = () => {
@@ -282,7 +288,7 @@ const CheckoutModal = () => {
                         </div>
 
                         {/* WhatsApp Sharing Row */}
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '0.6rem' }}>
                             <input
                                 type="tel"
                                 placeholder="Customer Mobile (e.g. 9876543210)"
@@ -314,9 +320,35 @@ const CheckoutModal = () => {
                                 }}
                             >
                                 <MessageSquare size={16} />
-                                <span>Send WhatsApp</span>
+                                <span>Send Bill</span>
                             </button>
                         </div>
+
+                        {/* Direct Google Review Request Button on WhatsApp */}
+                        <button
+                            type="button"
+                            onClick={handleSendReviewWhatsApp}
+                            style={{
+                                width: '100%',
+                                marginBottom: '1.25rem',
+                                backgroundColor: '#fffbeb',
+                                color: '#b45309',
+                                border: '1.5px solid #fde68a',
+                                borderRadius: '8px',
+                                padding: '0.55rem 0.9rem',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                            }}
+                        >
+                            <Star size={15} fill="#f59e0b" stroke="#d97706" />
+                            <span>⭐ Send 5-Star Review Request on WhatsApp</span>
+                        </button>
 
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <button

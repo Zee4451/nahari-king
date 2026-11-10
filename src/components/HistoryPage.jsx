@@ -20,9 +20,10 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Trash2
+  Trash2,
+  Star
 } from 'lucide-react';
-import { getDigitalReceiptUrl, openWhatsAppReceipt, formatBillNumber } from '../utils/receiptHelper';
+import { getDigitalReceiptUrl, openWhatsAppReceipt, openWhatsAppReviewRequest, formatBillNumber } from '../utils/receiptHelper';
 import './HistoryPage.css';
 
 /**
@@ -699,10 +700,20 @@ const HistoryPage = () => {
                       type="button"
                       onClick={() => openWhatsAppReceipt(receiptData, entry.customerPhone || '')}
                       className="history-action-btn whatsapp"
-                      title="Send WhatsApp receipt to customer"
+                      title="Send WhatsApp receipt to customer (includes Google Review link)"
                     >
                       <Share2 size={14} />
                       <span>WhatsApp</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openWhatsAppReviewRequest(entry.customerPhone || '')}
+                      className="history-action-btn review"
+                      title="Send Google Review invitation on WhatsApp"
+                    >
+                      <Star size={14} fill="#f59e0b" stroke="#d97706" />
+                      <span>Ask Review</span>
                     </button>
 
                     <button
