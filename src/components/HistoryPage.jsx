@@ -31,10 +31,14 @@ import './HistoryPage.css';
 const parseTimestampToDate = (timestamp) => {
   if (!timestamp) return null;
   if (timestamp instanceof Date) return timestamp;
+  if (typeof timestamp === 'number') return new Date(timestamp);
   if (timestamp instanceof Timestamp || (typeof timestamp === 'object' && timestamp.seconds !== undefined)) {
     return new Date(timestamp.seconds * 1000);
   }
   if (typeof timestamp === 'string') {
+    const num = Number(timestamp);
+    if (!isNaN(num) && num > 1000000000000) return new Date(num);
+
     const parsed = new Date(timestamp);
     if (!isNaN(parsed.getTime())) return parsed;
 
@@ -112,7 +116,7 @@ const HistoryPage = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState('today'); // 'today' | 'yesterday' | 'week' | 'all'
+  const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'today' | 'yesterday' | 'week'
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'dine-in' | 'takeaway'
   const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'Cash' | 'UPI'
   const [expandedCards, setExpandedCards] = useState(new Set());
@@ -215,7 +219,7 @@ const HistoryPage = () => {
     const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
 
     return history.filter((entry) => {
-      const entryDate = parseTimestampToDate(entry.timestamp);
+      const entryDate = parseTimestampToDate(entry.timestamp) || parseTimestampToDate(entry.id);
       const entryTime = entryDate ? entryDate.getTime() : null;
 
       // 1. Date Filter

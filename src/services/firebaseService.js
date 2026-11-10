@@ -413,18 +413,44 @@ export const deleteTable = async (tableId) => {
   }
 };
 
+// Helper to sort history documents safely regardless of timestamp type
+const sortHistoryDocs = (docsList) => {
+  const getMillis = (docData) => {
+    const t = docData.timestamp;
+    if (t) {
+      if (typeof t.toMillis === 'function') return t.toMillis();
+      if (typeof t.seconds === 'number') return t.seconds * 1000;
+      if (typeof t === 'number') return t;
+      const d = new Date(t);
+      const ms = d.getTime();
+      if (!isNaN(ms)) return ms;
+    }
+    // Fallback: Check if document ID is a numeric timestamp
+    const idNum = Number(docData.id || docData.docId);
+    if (!isNaN(idNum) && idNum > 1000000000000) return idNum;
+    return 0;
+  };
+  return [...docsList].sort((a, b) => getMillis(b) - getMillis(a));
+};
+
 // Get all history with performance monitoring
 export const getAllHistory = async () => {
   try {
     return await monitorFirebaseOperation('getAllHistory', async () => {
-      const historySnapshot = await getDocs(
-        query(historyCollection, orderBy('timestamp', 'desc'))
-      );
+      let historySnapshot;
+      try {
+        historySnapshot = await getDocs(
+          query(historyCollection, orderBy('timestamp', 'desc'))
+        );
+      } catch (orderErr) {
+        // Fallback to querying without orderBy in case of missing index or type mismatch
+        historySnapshot = await getDocs(historyCollection);
+      }
       const history = [];
       historySnapshot.forEach((doc) => {
         history.push({ ...doc.data(), id: doc.id, docId: doc.id });
       });
-      return history;
+      return sortHistoryDocs(history);
     });
   } catch (error) {
     console.error('Error getting history:', error);
@@ -439,27 +465,36 @@ export const subscribeToHistory = (callback) => {
     return () => { };
   }
 
+  const handleSnapshot = (snapshot) => {
+    try {
+      const history = [];
+      snapshot.forEach((doc) => {
+        history.push({ ...doc.data(), id: doc.id, docId: doc.id });
+      });
+      callback(sortHistoryDocs(history));
+    } catch (procErr) {
+      console.error('Error processing history snapshot:', procErr);
+    }
+  };
+
   try {
-    const unsubscribe = onSnapshot(
-      query(historyCollection, orderBy('timestamp', 'desc')),
-      (snapshot) => {
-        try {
-          const history = [];
-          snapshot.forEach((doc) => {
-            history.push({ ...doc.data(), id: doc.id, docId: doc.id });
+    let unsubscribe;
+    try {
+      unsubscribe = onSnapshot(
+        query(historyCollection, orderBy('timestamp', 'desc')),
+        handleSnapshot,
+        (error) => {
+          console.warn('Error subscribing to ordered history, listening to collection directly:', error);
+          const directUnsub = onSnapshot(historyCollection, handleSnapshot, (err2) => {
+            console.error('Direct collection listener failed, falling back to getAllHistory:', err2);
+            getAllHistory().then(callback).catch(console.error);
           });
-          callback(history);
-        } catch (procErr) {
-          console.error('Error processing history snapshot:', procErr);
+          return directUnsub;
         }
-      },
-      (error) => {
-        console.warn('Error subscribing to history, falling back to getAllHistory:', error);
-        getAllHistory().then(history => {
-          if (history) callback(history);
-        }).catch(e => console.error('Fallback getAllHistory failed:', e));
-      }
-    );
+      );
+    } catch (err) {
+      unsubscribe = onSnapshot(historyCollection, handleSnapshot);
+    }
 
     return monitorFirestoreListener('history_subscription', unsubscribe);
   } catch (err) {

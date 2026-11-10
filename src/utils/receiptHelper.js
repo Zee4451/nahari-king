@@ -123,14 +123,16 @@ export const getDigitalReceiptUrl = (receiptData) => {
 
     if (!receiptData) return `${origin}/receipt`;
 
-    // 1. If stored in Firestore, use ultra-clean short ID link (never gets broken by WhatsApp or chat apps)
+    const payload = encodeReceiptData(receiptData);
     const docId = receiptData.docId || receiptData.id;
+
+    // Include both docId and compact payload so it works instantly for unauthenticated customers
+    // while also referencing the exact Firestore database record!
     if (docId) {
-        return `${origin}/receipt?id=${encodeURIComponent(docId)}`;
+        return `${origin}/receipt?id=${encodeURIComponent(docId)}&d=${payload}`;
     }
 
-    // 2. Compact payload fallback
-    const payload = encodeReceiptData(receiptData);
+    // Compact payload fallback
     return `${origin}/receipt?d=${payload}`;
 };
 
